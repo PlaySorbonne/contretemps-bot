@@ -11,7 +11,7 @@ from  google.auth.exceptions import OAuthError, GoogleAuthError
 from datetime import datetime, timedelta
 
 from threading import Thread, Event
-from ischedule import schedule, run_loop
+from ischedule import schedule, run_loop #TODO : replace this with discord.ext.tasks
 
 
 GAPI_CALENDAR_SCOPES = [
