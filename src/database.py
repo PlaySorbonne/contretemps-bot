@@ -14,7 +14,7 @@ class Data:
     
     @staticmethod
     def open_dict(d):
-        ','.join(':'+s for s in d)
+        return ','.join(':'+s for s in d)
     
     def check_server_connexion(self, server_id):
         res = self.cur.execute(f"SELECT gtoken,gmail FROM server_connexion WHERE server_id = '{server_id}'").fetchall()
@@ -31,21 +31,40 @@ class Data:
     def get_all(self, table):
         return self.cur.execute(f"SELECT * FROM {table}").fetchall()
     
-    def insert_cols_in_table(table, cols):
-        c = open_dict(cols)
-        print(c)
-        return self.cur.executemany(f"INSERT INTO {table} VALUES({c})", cols)
+    def insert_cols_in_table(self,table, cols):
+        c = Data.open_dict(cols[0])
+        #print('result of open_dict :', c, '\nLEN(COLS)=', )
+        r = self.cur.executemany(f"INSERT INTO {table} VALUES({c})", cols)
+        self.con.commit()
+    
+    
 
     def get_all_watched_cals(self, server_id):
-        return self.cur.execute(f"SELECT * FROM watch_calendar where server_id = '{server_id}'").fetchall()
+        #print("Looking for server_id equals : ", server_id)
+        #print("Doing request:", f"SELECT * FROM watched_calendar where server_id = '{server_id}'")
+        val = self.cur.execute(f"SELECT * FROM watched_calendar where server_id = '{server_id}'").fetchall()
+        #print(len(val))
+        return val
     
     def get_all_watched_cals_for_cal(self, server_id, cal_id):
-        return self.cur.execute(f"SELECT * FROM watch_calendar where server_id = '{server_id}' AND calendar_id = '{cal_id}'").fetchall()
+        #print("Request:", f"SELECT * FROM watched_calendar where server_id = '{server_id}' AND calendar_id = '{cal_id}'")
+        res = self.cur.execute(f"SELECT * FROM watched_calendar where server_id = '{server_id}' AND calendar_id = '{cal_id}'").fetchall()
+        #print("Result: ", [c for c in res[0]])
+        return res
     
     def get_all_messages(self, server_id, watch_id):
         return self.cur.execute(f"SELECT * FROM message where server_id = '{server_id}' AND watch_id = '{watch_id}'").fetchall()
     
-    
+    def find_next_watch_id(self, server_id): #TODO : je sais pas quoi mais pas ça mdr
+        vals = self.cur.execute(f"SELECT watch_id FROM watched_calendar where server_id = '{server_id}'").fetchall()
+        vals.sort(key=lambda e: e['watch_id'])
+        next = 0
+        for v in vals:
+            if v['watch_id'] == next:
+                next = next+1
+            else:
+                return next
+        return next
 
 db = Data()
 print(db.check_server_connexion("kwekwe")['gtoken'])

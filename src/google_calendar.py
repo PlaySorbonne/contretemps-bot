@@ -2,6 +2,7 @@
 from apiclient.discovery import build
 from google.oauth2.credentials import Credentials
 from google_auth_oauthlib.flow import Flow
+from google.auth.transport.requests import Request
 from uuid import uuid4
 from googleapiclient.discovery import build
 import json
@@ -91,23 +92,23 @@ class CalendarApiLink:
                 creds.refresh(Request())
             else:
                 raise BadCredentials("bad :((")
-        else: 
-            self.__c = build('calendar', 'v3', credentials=creds)
-            tmp = build('oauth2', 'v2', credentials=creds)
-            uinfo = tmp.userinfo().get().execute()
-            self.__email = uinfo['email']
-            self.__id = uinfo['id']
-            self.__pic = uinfo['picture']
-            self.__watched_cals = dict()
-            for cal in watched_cals:
-                self.watch_calendar(cal)
+        self.__c = build('calendar', 'v3', credentials=creds)
+        tmp = build('oauth2', 'v2', credentials=creds)
+        uinfo = tmp.userinfo().get().execute()
+        self.__email = uinfo['email']
+        self.__id = uinfo['id']
+        self.__pic = uinfo['picture']
+        self.__watched_cals = dict()
+        for cal in watched_cals:
+            #print("DOING CURRENT CAL :", cal)
+            self.watch_calendar(cal)
             
-            self.__stop_upd = Event()
-            self.__callback = callback
-            schedule(self.update, interval=5)
-            self.__upd_thread = Thread(target=run_loop, name='Updater', kwargs={'stop_event':self.__stop_upd})
-            self.__upd_thread.start()
-         
+        self.__stop_upd = Event()
+        self.__callback = callback
+        schedule(self.update, interval=5)
+        self.__upd_thread = Thread(target=run_loop, name='Updater', kwargs={'stop_event':self.__stop_upd})
+        self.__upd_thread.start()
+     
         
     def get_id(self):
         return self.__id
@@ -162,8 +163,8 @@ class CalendarApiLink:
                 singleEvents=True,
                 syncToken=self.__watched_cals[cal]['tok']
             ).execute() # TODO: catch expired token, do manual update
-            print("Old sync token for ", resp.get('summary'), ':  ', self.__watched_cals[cal]['tok'])
-            print("New sync token for", resp.get('summary'), ':  ', resp.get('nextSyncToken'))
+            #print("Old sync token for ", resp.get('summary'), ':  ', self.__watched_cals[cal]['tok'])
+            #print("New sync token for", resp.get('summary'), ':  ', resp.get('nextSyncToken'))
             newevnts, newtok = resp.get('items'), resp.get('nextSyncToken')
             self.__watched_cals[cal]['tok'] = newtok
             evlist = self.__watched_cals[cal]['events']
