@@ -5,6 +5,8 @@ from discord.ext import tasks
 
 from google_calendar import CalendarApiLink
 
+from dateutil.relativedelta import relativedelta
+
 
 
 class EventNotifier:
@@ -14,7 +16,7 @@ class EventNotifier:
         self.__server_id = server_id
         state = db.check_server_connexion(server_id)
         #print("Server Id here :\n")
-        watched_cals = db.get_all_watched_cals(server_id)
+        watched_cals = Data().get_all_watched_cals(server_id)
         #print("WATCHED CALS : ", watched_cals)
         cals = [c['calendar_id'] for c in watched_cals]
         print("CALS:", cals)
@@ -53,7 +55,9 @@ class EventNotifier:
         db.insert_cols_in_table('watched_calendar', [new_col])
         self.__link.watch_calendar(cal_id)
         
-            
+    
+    def get_all_watched_cals(self):
+        return Data().get_all_watched_cals(self.__server_id)        
         
     
     def update(self, modifs):
@@ -88,6 +92,24 @@ class EventNotifier:
     def get_all_watches(self):
         return Data().get_all_watched_cals(self.__server_id)      
     
+    
+    def check_summary_uniqueness(self, new_name):
+        return Data().get_summary(self.__server_id, new_name) is None
+    
+    def add_summary(self, watch_cal, duration, in_months, base_day, name):
+        base_day_repr = base_day.isoformat()
+        duration = relativedelta(months=duration) if in_months else relativedelta(days=duration)
+        #TODO print the message
+        new_col = {
+            'server_id': self.__server_id,
+            'watch_id' :watch_cal['watch_id'],
+            'summary_id':name,
+            'base_date': base_day_repr,
+            'frequency': repr(duration),
+            'header': "TODO : HEADER",
+            'message_id' : None
+        }
+        Data().insert_cols_in_table('event_summary', [new_col])
     
     # TODO TODO
     def string_of_event(self, event) :
