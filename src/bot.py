@@ -28,6 +28,17 @@ async def on_ready():
 
 
 
+def ActionModal(lbl, cback, title):
+    class ActionModal(discord.ui.Modal):
+        def __init__(self):
+            super().__init__(title=title)
+            
+            self.add_item(discord.ui.InputText(label=lbl, style=discord.InputTextStyle.long))
+        
+        callback = cback
+    return ActionModal()
+
+
 class ConnectModal(discord.ui.Modal):
     def __init__(self, gid, x, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -136,9 +147,17 @@ def AddWatchForm(guild):
         @discord.ui.button(label="Confirm", style=discord.ButtonStyle.primary, row=3)
         async def select_callback_6(self, button, interactions):
             if self.channel is not None and self.cal is not None:
-                server_notifiers[gid].add_watch(self.channel, self.cal, self.upd_new, self.upd_mod, self.upd_del)
-                await interactions.response.send_message(content=f'It sould be done now !') #TODO put info of new watch in content
-                await self.message.delete()
+                async def cback(self2, interaction2):
+                    hey = self2.children[0].value
+                    if not server_notifiers[gid].check_watch_uniqueness(hey):
+                        await self.message.edit('An event notifier with that name already exists...')
+                        await interaction2.response.defer()
+                    else : 
+                        server_notifiers[gid].add_watch(self.channel, self.cal, self.upd_new, self.upd_mod, self.upd_del,hey) 
+                        await self.message.delete()
+                        await interaction2.response.send_message(f'Succesfully added notifier')
+                modal = ActionModal("Please enter a notifier name which is unique", cback, "Name")
+                await interactions.response.send_modal(modal)
             else:
                 await interactions.response.send_message(f'You need to select a calendar and a channel before confirming.', ephemeral=True)
             
@@ -154,15 +173,7 @@ async def add_new_event_notifier(ctx):
 
 
 
-def ActionModal(lbl, cback, title):
-    class ActionModal(discord.ui.Modal):
-        def __init__(self):
-            super().__init__(title=title)
-            
-            self.add_item(discord.ui.InputText(label=lbl, style=discord.InputTextStyle.long))
-        
-        callback = cback
-    return ActionModal()
+
 
 def MakeSummaryForm(guild):
     gid = guild.id
@@ -170,8 +181,8 @@ def MakeSummaryForm(guild):
     formated = []
     for c in cals:
         cname = bot.get_channel(int(c['channel_id'])).name
-        calname = c['calendar_name']
-        formated.append('#'+cname+'---'+calname)
+        calname = c['watch_id']
+        formated.append(f'Channel: #{cname} ----- {calname}')
     today = datetime.date.today()
         
         
@@ -200,41 +211,55 @@ def MakeSummaryForm(guild):
             await interaction.response.edit_message(view=self)
             #await interaction.response.send_message(f"You have chosen  {select.values[0]}.")
         
-        @discord.ui.select(
-            placeholder = "Starting on day...",
-            min_values=1,
-            max_values=1,
-            options = [ discord.SelectOption(label=(today+datetime.timedelta(days=i)).isoformat(), value=str(i)) for i in range(20) ], #TODO TODO 
-            row=1
-        )
-        async def select_callback_2(self, select, interaction):
-            self.base_day = today+datetime.timedelta(days=int(select.values[0]))
-            select.placeholder = self.base_day.isoformat()
-            await interaction.response.edit_message(view=self)
+        @discord.ui.button(label = f"Starting on day: {today}", style=discord.ButtonStyle.primary, row=1)
+        async def select_callback_2(self, button, interaction):
+            async def cback(self2, interaction2):
+                when = self2.children[0].value
+                try:
+                    self.base_day = datetime.datetime.fromisoformat(when) #TODO : check date sanity
+                    button.label = f"Starting on day: {self.base_day.isoformat()}"
+                    await self.message.edit(self.message.content, view=self)
+                    await interaction2.response.defer()
+                except ValueError:
+                    await interaction2.response.send_message(f'"{when}" is an invalid date format.', ephemeral=True)
+            modal = ActionModal("Starting day in format YYYY-MM-DD HH:MM", cback, "Start summary time")
+            await interaction.response.send_modal(modal) #TODO TODO : command to check next update for summary
         
-        @discord.ui.select(
-            placeholder = "Reset every...",
-            min_values=1,
-            max_values=1,
-            options = [ discord.SelectOption(label=str(i), value=str(i)) for i in range(21) ], #TODO MAKE INTO TEXT
-            row=2
-        )
-        async def select_callback_10(self, select, interaction):
-            self.duration = (select.values[0])
-            select.placeholder = str(select.values[0])
-            await interaction.response.edit_message(view=self)        
+        @discord.ui.button(label="Reset every 7...", style=discord.ButtonStyle.primary, row=2)
+        async def select_callback_10(self, button, interaction):
+            async def cback(self2, interaction2):
+                a = self2.children[0].value
+                try:
+                    n = int(a)
+                    if n <= 0 : raise ValueError("Frequency must be strictly positive")
+                    self.duration = n
+                    button.label = f'Reset every {n}...'
+                    await self.message.edit(self.message.content, view=self)
+                    await interaction2.response.defer()
+                except ValueError:
+                    await interaction2.response.send_message(f'Bad value for frequency: "{a}"', ephemeral=True)
+            modal = ActionModal("Frequency : (a stricty positive number)", cback, "Update Frequency")
+            await interaction.response.send_modal(modal)  
         
-        @discord.ui.button(label="Duration in days", style=discord.ButtonStyle.primary, row=3)
+        @discord.ui.button(label="days", style=discord.ButtonStyle.primary, row=2)
         async def select_callback_3(self, button, interactions):
             if self.in_months == 0:
-                button.label="Duration in months"
+                button.label="months"
                 self.in_months = 1
             else:
-                button.label="Duration in days"
+                button.label="days"
                 self.in_months = 0
             await interactions.response.edit_message(view=self)
 
-
+        @discord.ui.button(label="Set Header", style=discord.ButtonStyle.primary, row=3)
+        async def header_button_callback(self, button, interaction):
+            async def cback(self2, interaction2):
+                self.header = self2.children[0].value
+                await self.message.edit(f'Header:\n{self.header}', view=self)
+                await interaction2.response.defer()
+            modal = ActionModal("Write the header message", cback, "Header message")
+            await interaction.response.send_modal(modal)
+        
         @discord.ui.button(label="Confirm", style=discord.ButtonStyle.success, row=4)
         async def select_callback_6(self, button, interactions):
             if self.watched_cal is not None:
@@ -244,7 +269,7 @@ def MakeSummaryForm(guild):
                         await self.message.edit('A summary with that name already exists...')
                         await interaction.response.defer()
                     else : 
-                        server_notifiers[gid].add_summary(self.watched_cal, self.duration, self.in_months, self.base_day, hey) 
+                        server_notifiers[gid].add_summary(self.watched_cal, self.duration, self.in_months, self.base_day,self.header, hey) 
                         await self.message.delete()
                         await interaction.response.send_message(f'Succesfully added summary', ephemeral=True)
                 modal = ActionModal("Please enter a summary title which is unique", cback, "Summary title")
@@ -259,9 +284,12 @@ def MakeSummaryForm(guild):
 @bot.slash_command(description="Show a summary of watched events.")
 async def make_summary(ctx):
     if (server_notifiers[ctx.guild.id].connected):
-        await ctx.respond("", view=MakeSummaryForm(ctx.guild))
+        await ctx.respond("", view=MakeSummaryForm(ctx.guild), ephemeral=True)
 
 
+
+#TODO : Manage notifiers command allowing to VIEW/DELETE/EDIT a notifier
+#TODO : Same thing for summaries
 
 bot.run(token)
 

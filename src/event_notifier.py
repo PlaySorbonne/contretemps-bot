@@ -38,11 +38,10 @@ class EventNotifier:
         self.connected = self.__link is not None
     
     
-    def add_watch(self, channel_id, cal_id, new, dele, mod):
-        unique_id = db.find_next_watch_id(self.__server_id)
+    def add_watch(self, channel_id, cal_id, new, dele, mod, name):
         new_col = {
             'server_id': self.__server_id,
-            'watch_id': unique_id,
+            'watch_id': name,
             'channel_id' : channel_id,
             'filter' : '',
             'updates_new': new,
@@ -95,8 +94,10 @@ class EventNotifier:
     
     def check_summary_uniqueness(self, new_name):
         return Data().get_summary(self.__server_id, new_name) is None
+    def check_watch_uniqueness(self, new_name):
+        return Data().get_watch(self.__server_id, new_name) is None
     
-    def add_summary(self, watch_cal, duration, in_months, base_day, name):
+    def add_summary(self, watch_cal, duration, in_months, base_day, header, name):
         base_day_repr = base_day.isoformat()
         duration = relativedelta(months=duration) if in_months else relativedelta(days=duration)
         #TODO print the message
@@ -106,7 +107,7 @@ class EventNotifier:
             'summary_id':name,
             'base_date': base_day_repr,
             'frequency': repr(duration),
-            'header': "TODO : HEADER",
+            'header': header,
             'message_id' : None
         }
         Data().insert_cols_in_table('event_summary', [new_col])

@@ -115,6 +115,11 @@ class CalendarApiLink:
     def get_email(self):
         return self.__email
     
+    def get_cal_name(self, cal_id):
+        return self.__c.calendars().get(
+            calendarId=cal_id
+        ).execute()['summary']
+    
     def watch_calendar(self, cal):
         if (cal in self.__watched_cals):
             return
@@ -177,5 +182,4 @@ class CalendarApiLink:
                 modified[cal] = newevnts
         if (self.__callback is not None):
             self.__callback(modified)
-    
-        
+

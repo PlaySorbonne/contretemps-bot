@@ -55,17 +55,10 @@ class Data:
     def get_all_messages(self, server_id, watch_id):
         return self.cur.execute(f"SELECT * FROM message where server_id = '{server_id}' AND watch_id = '{watch_id}'").fetchall()
     
-    def find_next_watch_id(self, server_id): #TODO : je sais pas quoi mais pas ça mdr
-        vals = self.cur.execute(f"SELECT watch_id FROM watched_calendar where server_id = '{server_id}'").fetchall()
-        vals.sort(key=lambda e: e['watch_id'])
-        next = 0
-        for v in vals:
-            if v['watch_id'] == next:
-                next = next+1
-            else:
-                return next
-        return next
-    
+    def get_watch(self, server_id, watch_id):
+        val = self.cur.execute(f"SELECT * FROM watched_calendar WHERE server_id = '{server_id}' AND watch_id = '{watch_id}'").fetchall()
+        return None if len(val)==0 else val[0]
+    #TODO EVERYWHERE : use sqlite3 formatter for arguments to avoid sql injections 
     def get_summary(self, server_id, watch_id):
         val = self.cur.execute(f"SELECT * FROM event_summary WHERE server_id = '{server_id}' AND watch_id = '{watch_id}'").fetchall()
         return None if len(val)==0 else val[0]
