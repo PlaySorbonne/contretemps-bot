@@ -14,6 +14,8 @@ from datetime import datetime, timedelta
 from threading import Thread, Event
 from ischedule import schedule, run_loop #TODO : replace this with discord.ext.tasks
 
+from discord.ext import tasks
+
 
 GAPI_CALENDAR_SCOPES = [
     'https://www.googleapis.com/auth/calendar',
@@ -105,10 +107,10 @@ class CalendarApiLink:
             
         self.__stop_upd = Event()
         self.__callback = callback
-        schedule(self.update, interval=5)
-        self.__upd_thread = Thread(target=run_loop, name='Updater', kwargs={'stop_event':self.__stop_upd})
-        self.__upd_thread.start()
-     
+        #schedule(self.update, interval=5)
+        #self.__upd_thread = Thread(target=run_loop, name='Updater', kwargs={'stop_event':self.__stop_upd})
+        #self.__upd_thread.start()
+        self.update.start()
         
     def get_id(self):
         return self.__id
@@ -174,7 +176,9 @@ class CalendarApiLink:
     def get_all_events(self, calendar_id):
         return self.__watched_cals[calendar_id]['events']
     
-    def update(self):
+    
+    @tasks.loop(seconds=5)
+    async def update(self):
         modified = dict()
         for cal in self.__watched_cals:
             resp = self.__c.events().list(
@@ -195,5 +199,5 @@ class CalendarApiLink:
             if newevnts:
                 modified[cal] = newevnts
         if (self.__callback is not None):
-            self.__callback(modified)
+            await self.__callback(modified)
 

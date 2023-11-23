@@ -59,9 +59,20 @@ class Data:
         val = self.cur.execute(f"SELECT * FROM watched_calendar WHERE server_id = '{server_id}' AND watch_id = '{watch_id}'").fetchall()
         return None if len(val)==0 else val[0]
     #TODO EVERYWHERE : use sqlite3 formatter for arguments to avoid sql injections 
-    def get_summary(self, server_id, watch_id):
+    def get_summary(self, server_id, summary_id):
         val = self.cur.execute(f"SELECT * FROM event_summary WHERE server_id = '{server_id}' AND summary_id = '{watch_id}'").fetchall()
         return None if len(val)==0 else val[0]
+    def get_watch_summaries(self, server_id, watch_id):
+        val = self.cur.execute("SELECT * FROM event_summary WHERE server_id = ? AND watch_id = ?", (server_id, watch_id))
+        return val
+    def modify_summary_message(self, summary, new_message):
+        val = self.cur.execute(
+            """UPDATE event_summary
+               SET message_id = ?
+               WHERE server_id = ? AND watch_id = ? AND summary_id = ?""", 
+            (new_message, summary['server_id'], summary['watch_id'], summary['summary_id'])
+        )
+        self.con.commit()
 
 db = Data()
 print(db.check_server_connexion("kwekwe")['gtoken'])

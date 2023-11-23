@@ -3,6 +3,7 @@ from database import db,Data
 
 from discord.ext import tasks 
 from discord import Embed, EmbedField
+from discord.errors import NotFound
 
 from google_calendar import CalendarApiLink
 
@@ -62,9 +63,10 @@ class EventNotifier:
         return Data().get_all_watched_cals(self.__server_id)        
         
     
-    def update(self, modifs):
+    async def update(self, modifs): #TODO : make it async 
+        d = Data()
         for cal in modifs:
-            for watched in Data().get_all_watched_cals_for_cal(self.__server_id, cal):
+            for watched in d.get_all_watched_cals_for_cal(self.__server_id, cal):
                 #TODO: delete old messages
                 for e in modifs[cal]:
                     if not True : #TODO self.filter_tags(e['tags'], watched['filter']):
@@ -85,8 +87,26 @@ class EventNotifier:
                             body = 'Updated event : \n'+self.string_of_event(e)
                     if body:
                         #print("WATCHED:", watched['channel_id'])
-                        u = self.__b.get_channel(int(watched['channel_id'])).send(body) #channel_id
-                        t = self.__b.loop.create_task(u)
+                        u = await self.__b.get_channel(int(watched['channel_id'])).send(body)
+                        # TODO : store this message and delete it when new update / when the watch is deleted
+                        #t = self.__b.loop.create_task(u)
+                # Handling all the summaries attached to the watch
+                summaries = d.get_watch_summaries(self.__server_id, watched['watch_id'])
+                for s in summaries:
+                    new_evs = self.get_summary_events(s)
+                    new_embd = self.make_daily_embed(s['summary_id'], "", new_evs)
+                    m = None
+                    if s['message_id'] is not None:
+                        try :
+                            m = await self.__b.get_channel(int(watched['channel_id'])).fetch_message(int(s['message_id']))
+                        except NotFound:
+                            pass
+                    if m is not None:
+                        await m.edit(content=s['header'], embed=new_embd)
+                    else:
+                        m = await self.__b.get_channel(int(watched['channel_id'])).send(content=s['header'], embed=new_embd)
+                        d.modify_summary_message(s, str(m.id))
+                
     
     def get_all_calendars(self):
         return self.__link.get_calendars()          
