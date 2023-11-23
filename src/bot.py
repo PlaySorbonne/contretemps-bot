@@ -22,6 +22,20 @@ server_notifiers = dict()
 async def on_ready():
     async for guild in bot.fetch_guilds(limit=150):
         server_notifiers[guild.id] = EventNotifier(guild.id, bot)
+    #e = await (await bot.get_channel(1174715386390921247).fetch_message('1174715386390921247/1177257128772259850'))
+    #print("Found the chroniclebot embed :", e)
+
+@bot.event
+async def on_message_edit(before,message):
+    return 
+    print("Message content:", message.content)
+    print("Catched embeds: ", message.embeds)
+    print("id: ", message.id)
+    print("channed: ", message.channel)
+    print("attachments:", message.attachments)
+    print("components:", message.components)
+    print("Author:", message.author)
+    print("interaction:", message.interaction)
 
 #TODO on_join_guild et on_ban_de_guild
 #TODO TODO add roles and permissions : not anyone should be able to do the thing
@@ -265,11 +279,11 @@ def MakeSummaryForm(guild):
             if self.watched_cal is not None:
                 async def cback(self2, interaction):
                     hey = self2.children[0].value
-                    if not server_notifiers[gid].check_summary_uniqueness(hey):
+                    if not server_notifiers[gid].check_summary_uniqueness(hey): #TODO this check is not working 
                         await self.message.edit('A summary with that name already exists...')
                         await interaction.response.defer()
                     else : 
-                        server_notifiers[gid].add_summary(self.watched_cal, self.duration, self.in_months, self.base_day,self.header, hey) 
+                        await server_notifiers[gid].add_summary(self.watched_cal, self.duration, self.in_months, self.base_day,self.header, hey) 
                         await self.message.delete()
                         await interaction.response.send_message(f'Succesfully added summary', ephemeral=True)
                 modal = ActionModal("Please enter a summary title which is unique", cback, "Summary title")

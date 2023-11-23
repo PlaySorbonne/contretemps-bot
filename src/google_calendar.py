@@ -157,6 +157,20 @@ class CalendarApiLink:
         )
         return res
     
+    def get_period_events(self, calendarId, start, end): #TODO handle timezones ?
+        start = start.isoformat()+'Z'
+        end = end.isoformat()+'Z'
+        res = (
+            self.__c.events().list(
+                calendarId=calendarId,
+                timeMin=start,
+                timeMax=end,
+                singleEvents=True,
+                orderBy='startTime'
+            ).execute().get('items')
+        )
+        return res
+    
     def get_all_events(self, calendar_id):
         return self.__watched_cals[calendar_id]['events']
     

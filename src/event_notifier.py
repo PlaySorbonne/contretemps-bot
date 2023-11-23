@@ -2,8 +2,11 @@
 from database import db,Data
 
 from discord.ext import tasks 
+from discord import Embed, EmbedField
 
 from google_calendar import CalendarApiLink
+
+import datetime
 
 from dateutil.relativedelta import relativedelta
 
@@ -83,7 +86,7 @@ class EventNotifier:
                     if body:
                         #print("WATCHED:", watched['channel_id'])
                         u = self.__b.get_channel(int(watched['channel_id'])).send(body) #channel_id
-                        self.__b.loop.create_task(u)
+                        t = self.__b.loop.create_task(u)
     
     def get_all_calendars(self):
         return self.__link.get_calendars()          
@@ -97,7 +100,7 @@ class EventNotifier:
     def check_watch_uniqueness(self, new_name):
         return Data().get_watch(self.__server_id, new_name) is None
     
-    def add_summary(self, watch_cal, duration, in_months, base_day, header, name):
+    async def add_summary(self, watch_cal, duration, in_months, base_day, header, name):
         base_day_repr = base_day.isoformat()
         duration = relativedelta(months=duration) if in_months else relativedelta(days=duration)
         #TODO print the message
@@ -110,10 +113,58 @@ class EventNotifier:
             'header': header,
             'message_id' : None
         }
+        events = self.get_summary_events(new_col)
+        embed = self.make_daily_embed(new_col['summary_id'], "", events)
+        watch = Data().get_watch(self.__server_id, new_col['watch_id'])
+        u = await self.__b.get_channel(int(watch['channel_id'])).send(new_col['header'], embed=embed)
+        new_col['message_id'] = str(u.id)
         Data().insert_cols_in_table('event_summary', [new_col])
+        #self.__b.loop.create_task(u)
+        
     
     # TODO TODO
     def string_of_event(self, event) :
         return "Body placeholder"
     def filter_tags(self, tags, filt):
-        return True              
+        return True 
+    
+    def get_summary_events(self, summary): #TODO update_summary_dates
+        base_date = datetime.datetime.fromisoformat(summary['base_date'])
+        locs=dict()
+        exec(f'duration = {summary["frequency"]}', globals(), locs)
+        end_date = base_date+locs['duration']
+        watch = Data().get_watch(summary['server_id'], summary['watch_id'])
+        events = self.__link.get_period_events(watch['calendar_id'], base_date, end_date)
+        return events
+    
+    def make_daily_embed(self, title, description, events):
+        l = []
+        for e in events: # TODO : Handle(or just ignore) multi-day events
+            day = datetime.datetime.fromisoformat(e['start']['dateTime']).date().isoformat()
+            start = datetime.datetime.fromisoformat(e['start']['dateTime'])
+            end = datetime.datetime.fromisoformat(e['end']['dateTime'])
+            value = {
+                'title': e['summary'],
+                'start': start,
+                'end': end,
+                'color': '008000' #TODO correct handling of colors, color endpoint in the cal api
+            }
+            if not l or  day > l[-1][0]:
+                l.append((day, []))
+            l[-1][1].append(value)
+        return DailyEmbed(title, description, l)
+            
+
+class DailyEmbed(Embed):
+    
+    def __init__(self, title, description, days):
+        items = [] #TODO : handle more than 25 items (pagination ?)
+        for (day, events) in days:
+            t = f"**{day}**"
+            v = '\n'.join( #TODO handle long titles and pad short titles, have internal representation of events(not dicts)
+              f":blue_square: `{e['title']}` <t:{int(e['start'].timestamp())}:t> <t:{int(e['end'].timestamp())}:t>"
+              for e in events
+            )
+            items.append(EmbedField(name=t, value=v))
+        super().__init__(title=title, description=description, fields=items)
+        

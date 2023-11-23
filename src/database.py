@@ -60,7 +60,7 @@ class Data:
         return None if len(val)==0 else val[0]
     #TODO EVERYWHERE : use sqlite3 formatter for arguments to avoid sql injections 
     def get_summary(self, server_id, watch_id):
-        val = self.cur.execute(f"SELECT * FROM event_summary WHERE server_id = '{server_id}' AND watch_id = '{watch_id}'").fetchall()
+        val = self.cur.execute(f"SELECT * FROM event_summary WHERE server_id = '{server_id}' AND summary_id = '{watch_id}'").fetchall()
         return None if len(val)==0 else val[0]
 
 db = Data()
