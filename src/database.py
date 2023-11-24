@@ -76,6 +76,14 @@ class Data:
             (new_message, summary['server_id'], summary['watch_id'], summary['summary_id'])
         )
         self.con.commit()
+    def modify_summary(self, summary, new_data):
+        mods = " , ".join( f"{key} = ?" for key in new_data)
+        val = self.cur.execute(
+            f"""UPDATE event_summary
+               SET {mods}
+               WHERE server_id = ? AND watch_id = ? AND summary_id = ?""",
+            [d for d in new_data.values()] + [summary['server_id'], summary['watch_id'], summary['summary_id']]
+        )
+        self.con.commit()
 
 db = Data()
-print(db.check_server_connexion("kwekwe")['gtoken'])

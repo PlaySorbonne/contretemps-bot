@@ -25,6 +25,7 @@ class EventNotifier:
         cals = [c['calendar_id'] for c in watched_cals]
         print("CALS:", cals)
         self.connect(state['gtoken'], cals)
+        self.check_summaries.start()
         
         
     def connect(self, tok, cals):
@@ -112,6 +113,27 @@ class EventNotifier:
                         d.modify_summary_message(s, str(m.id))
                     #print(f"Ended '{s['summary_id']}', total number of summaries : {len(summaries)}")
     
+    @tasks.loop(seconds=5)
+    async def check_summaries(self):
+        if (self.__link is None):
+            return
+        d = Data()
+        for w in d.get_all_watched_cals(self.__server_id):
+            for s in d.get_watch_summaries(self.__server_id, w['watch_id']):
+                # check if it is time to update the summary base date
+                base_date = datetime.datetime.fromisoformat(s['base_date'])
+                delta = EventNotifier.parse_delta(s['frequency'])
+                now = datetime.datetime.now()
+                if (now > base_date+delta): #TODO: check date sanity when creating a summary (in bot.py)
+                    print("Found finished summary")
+                    while (now > base_date+delta):
+                        base_date += delta
+                    d.modify_summary(s, {'base_date':base_date.isoformat()})
+                    s = d.get_summary(self.__server_id, s['watch_id'], s['summary_id'])
+                    await self.delete_summary_message(s, d=d)
+                    await self.publish_summary(s, d=d)
+                    
+    
     async def delete_summary(self, watch_id, summary_id, d=None):
         if d is None: d=Data()
         s = d.get_summary(self.__server_id, watch_id, summary_id)
@@ -133,6 +155,31 @@ class EventNotifier:
         if d is None: d=Data()
         for s in d.get_watch_summaries(self.__server_id, watch_id):
             await self.delete_summary(s['watch_id'], s['summary_id'], d)#TODO : redundant db requests
+    
+    async def delete_summary_message(self, summary, watch=None, upd_db=False, d=None):
+        if d is None: d=Data()
+        if watch is None:
+            watch = d.get_watch(self.__server_id, summary['watch_id'])
+        if summary['message_id'] is not None:
+             try:
+                m = await self.__b.get_channel(int(watch['channel_id'])).fetch_message(int(summary['message_id']))
+                if (m.author == self.__b.user): #should be always true but extra check since we're deleting a message
+                    await m.delete()
+             except NotFound: #message does not exist anymore, nothing to do
+                print("Tried to delete message from server, but it did not exist :((((")
+        if (upd_db):
+            d.modify_summary_message(summary, None)
+    
+    async def publish_summary(self, summary, watch=None , d=None):
+        if d is None: d=Data()
+        if watch is None:
+            watch = d.get_watch(self.__server_id, summary['watch_id'])
+        new_evs = self.get_summary_events(summary)
+        new_embd = self.make_daily_embed(summary['summary_id'], "", new_evs)
+        m = await self.__b.get_channel(int(watch['channel_id'])).send(content=summary['header'], embed=new_embd)
+        #summary['message_id'] = str(m.id)
+        d.modify_summary(summary, {'message_id' : str(m.id) })
+        
     
     def get_all_calendars(self):
         return self.__link.get_calendars()          
@@ -199,6 +246,12 @@ class EventNotifier:
                 l.append((day, []))
             l[-1][1].append(value)
         return DailyEmbed(title, description, l)
+    
+    @staticmethod
+    def parse_delta(s):
+        env = dict()
+        exec(f'ret = {s}', globals(), env)
+        return env['ret'] 
             
 
 class DailyEmbed(Embed):

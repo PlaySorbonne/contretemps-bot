@@ -26,16 +26,8 @@ async def on_ready():
     #print("Found the chroniclebot embed :", e)
 
 @bot.event
-async def on_message_edit(before,message):
-    return 
-    print("Message content:", message.content)
-    print("Catched embeds: ", message.embeds)
-    print("id: ", message.id)
-    print("channed: ", message.channel)
-    print("attachments:", message.attachments)
-    print("components:", message.components)
-    print("Author:", message.author)
-    print("interaction:", message.interaction)
+async def on_message(m):
+    return
 
 #TODO on_join_guild et on_ban_de_guild
 #TODO TODO add roles and permissions : not anyone should be able to do the thing
