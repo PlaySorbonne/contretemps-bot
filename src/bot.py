@@ -40,7 +40,7 @@ async def on_message_edit(before,message):
 #TODO on_join_guild et on_ban_de_guild
 #TODO TODO add roles and permissions : not anyone should be able to do the thing
 
-
+#TODO : restucture (and split) this file into multiple files (maybe one module per command grouped in a package?)
 
 def ActionModal(lbl, cback, title):
     class ActionModal(discord.ui.Modal):
@@ -279,7 +279,7 @@ def MakeSummaryForm(guild):
             if self.watched_cal is not None:
                 async def cback(self2, interaction):
                     hey = self2.children[0].value
-                    if not server_notifiers[gid].check_summary_uniqueness(hey): #TODO this check is not working 
+                    if not server_notifiers[gid].check_summary_uniqueness(self.watched_cal['watch_id'],hey): #TODO this check is not working 
                         await self.message.edit('A summary with that name already exists...')
                         await interaction.response.defer()
                     else : 

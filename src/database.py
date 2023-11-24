@@ -59,11 +59,14 @@ class Data:
         val = self.cur.execute(f"SELECT * FROM watched_calendar WHERE server_id = '{server_id}' AND watch_id = '{watch_id}'").fetchall()
         return None if len(val)==0 else val[0]
     #TODO EVERYWHERE : use sqlite3 formatter for arguments to avoid sql injections 
-    def get_summary(self, server_id, summary_id):
-        val = self.cur.execute(f"SELECT * FROM event_summary WHERE server_id = '{server_id}' AND summary_id = '{watch_id}'").fetchall()
+    def get_summary(self, server_id, watch_id, summary_id):
+        val = self.cur.execute("SELECT * FROM event_summary WHERE server_id = ? AND watch_id = ? AND summary_id = ?", (server_id, watch_id, summary_id)).fetchall()
         return None if len(val)==0 else val[0]
+    def delete_summary(self, server_id, watch_id, summary_id):
+        val = self.cur.execute("DELETE FROM event_summary WHERE server_id = ? AND watch_id = ? AND summary_id = ?", (server_id, watch_id, summary_id))
+        self.con.commit()
     def get_watch_summaries(self, server_id, watch_id):
-        val = self.cur.execute("SELECT * FROM event_summary WHERE server_id = ? AND watch_id = ?", (server_id, watch_id))
+        val = self.cur.execute("SELECT * FROM event_summary WHERE server_id = ? AND watch_id = ?", (server_id, watch_id)).fetchall()
         return val
     def modify_summary_message(self, summary, new_message):
         val = self.cur.execute(

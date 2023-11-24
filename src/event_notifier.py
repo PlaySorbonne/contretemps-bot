@@ -92,7 +92,9 @@ class EventNotifier:
                         #t = self.__b.loop.create_task(u)
                 # Handling all the summaries attached to the watch
                 summaries = d.get_watch_summaries(self.__server_id, watched['watch_id'])
+                #print("Summaries:", summaries)
                 for s in summaries:
+                    #print(f"Doing '{s['summary_id']}', total number of summaries : {len(summaries)}")
                     new_evs = self.get_summary_events(s)
                     new_embd = self.make_daily_embed(s['summary_id'], "", new_evs)
                     m = None
@@ -106,7 +108,29 @@ class EventNotifier:
                     else:
                         m = await self.__b.get_channel(int(watched['channel_id'])).send(content=s['header'], embed=new_embd)
                         d.modify_summary_message(s, str(m.id))
-                
+                    #print(f"Ended '{s['summary_id']}', total number of summaries : {len(summaries)}")
+    
+    async def delete_summary(self, watch_id, summary_id, d=None):
+        if d is None: d=Data()
+        s = d.get_summary(self.__server_id, watch_id, summary_id)
+        w = d.get_watch(self.__server_id, watch_id)
+        if s is None: #TODO proper logging
+            print(f"Did not find summary {summary_id}")
+            return
+        if s['message_id'] is not None:
+             try:
+                m = await self.__b.get_channel(int(w['channel_id'])).fetch_message(int(s['message_id']))
+                if (m.author == self.__b.user): #should be always true but extra check since we're deleting a message
+                    await m.delete()
+             except NotFound: #message does not exist anymore, nothing to do
+                print("Tried to delete message from server, but it did not exist :((((")
+        print(f"Deleting summary {summary_id}")
+        d.delete_summary(self.__server_id, watch_id, summary_id)
+    
+    async def clear_summaries(self, watch_id, d=None):
+        if d is None: d=Data()
+        for s in d.get_watch_summaries(self.__server_id, watch_id):
+            await self.delete_summary(s['watch_id'], s['summary_id'], d)#TODO : redundant db requests
     
     def get_all_calendars(self):
         return self.__link.get_calendars()          
@@ -115,8 +139,8 @@ class EventNotifier:
         return Data().get_all_watched_cals(self.__server_id)      
     
     
-    def check_summary_uniqueness(self, new_name):
-        return Data().get_summary(self.__server_id, new_name) is None
+    def check_summary_uniqueness(self, watch_id, new_name):
+        return Data().get_summary(self.__server_id, watch_id, new_name) is None
     def check_watch_uniqueness(self, new_name):
         return Data().get_watch(self.__server_id, new_name) is None
     

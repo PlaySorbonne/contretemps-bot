@@ -11,10 +11,8 @@ from  google.auth.exceptions import OAuthError, GoogleAuthError
 
 from datetime import datetime, timedelta
 
-from threading import Thread, Event
-from ischedule import schedule, run_loop #TODO : replace this with discord.ext.tasks
 
-from discord.ext import tasks
+from discord.ext import tasks #TODO : check if tasks run in parallel
 
 
 GAPI_CALENDAR_SCOPES = [
@@ -105,11 +103,8 @@ class CalendarApiLink:
             #print("DOING CURRENT CAL :", cal)
             self.watch_calendar(cal)
             
-        self.__stop_upd = Event()
         self.__callback = callback
-        #schedule(self.update, interval=5)
-        #self.__upd_thread = Thread(target=run_loop, name='Updater', kwargs={'stop_event':self.__stop_upd})
-        #self.__upd_thread.start()
+
         self.update.start()
         
     def get_id(self):
