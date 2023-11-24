@@ -180,7 +180,7 @@ async def add_new_event_notifier(ctx):
 
 
 
-
+#TODO: option for extended summary form (showing location/description of events ?)
 def MakeSummaryForm(guild):
     gid = guild.id
     cals = server_notifiers[gid].get_all_watched_cals()
@@ -298,6 +298,8 @@ async def make_summary(ctx):
 
 #TODO : Manage notifiers command allowing to VIEW/DELETE/EDIT a notifier
 #TODO : Same thing for summaries
+#TODO : force update all summaries of server
+
 
 bot.run(token)
 

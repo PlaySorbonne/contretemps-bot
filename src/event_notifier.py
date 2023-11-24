@@ -10,6 +10,7 @@ from google_calendar import CalendarApiLink
 import datetime
 
 from dateutil.relativedelta import relativedelta
+from dateutil.utils import within_delta
 
 
 
@@ -74,23 +75,25 @@ class EventNotifier:
                 for e in modifs[cal]:
                     if not True : #TODO self.filter_tags(e['tags'], watched['filter']):
                         continue
-                        
-                    #TODO : modifier les récaps
+
                     
-                    body = None
+                    change = None
                     if e['status'] == 'cancelled' :
                         if watched['updates_del']:
-                            # TODO : remember this message
-                            body = 'Deleted event : \n'+self.string_of_event(e)
-                    elif e['updated'] == e['created']:
+                            change = 'del'
+                    elif within_delta(
+                        datetime.datetime.fromisoformat(e['updated'][:-1]),
+                        datetime.datetime.fromisoformat(e['created'][:-1]),
+                        datetime.timedelta(seconds=2)
+                         ):
                         if watched['updates_new']:
-                            body = 'New event : \n'+self.string_of_event(e)
+                            change = 'new'
                     else: # Event modified
                         if watched['updates_mod']:
-                            body = 'Updated event : \n'+self.string_of_event(e)
-                    if body:
+                            change = 'mod'
+                    if change:
                         #print("WATCHED:", watched['channel_id'])
-                        u = await self.__b.get_channel(int(watched['channel_id'])).send(body)
+                        u = await self.__b.get_channel(int(watched['channel_id'])).send("", embed=EventNotificationEmbed(e, change))
                         # TODO : store this message and delete it when new update / when the watch is deleted
                         #t = self.__b.loop.create_task(u)
                 # Handling all the summaries attached to the watch
@@ -216,8 +219,6 @@ class EventNotifier:
         
     
     # TODO TODO
-    def string_of_event(self, event) :
-        return "Body placeholder"
     def filter_tags(self, tags, filt):
         return True 
     
@@ -259,11 +260,50 @@ class DailyEmbed(Embed):
     def __init__(self, title, description, days):
         items = [] #TODO : handle more than 25 items (pagination ?)
         for (day, events) in days:
-            t = f"**{day}**"
-            v = '\n'.join( #TODO handle long titles and pad short titles, have internal representation of events(not dicts)
-              f":blue_square: `{e['title']}` <t:{int(e['start'].timestamp())}:t> <t:{int(e['end'].timestamp())}:t>"
+            t = f"**<t:{int(datetime.datetime.fromisoformat(day).timestamp())}:F>**"
+            
+            lines = (
+              (
+                f"`{e['title']}",
+                f" <t:{int(e['start'].timestamp())}:t> - <t:{int(e['end'].timestamp())}:t>"
+              )
               for e in events
             )
+            lines = ( ((l[:47]+'...' if len(l)>50 else l+'\u00a0'*(50-len(l))),t) for (l,t) in lines)
+            v = '\n'.join(':blue_square:'+l+'`'+t for (l,t) in lines)
             items.append(EmbedField(name=t, value=v))
         super().__init__(title=title, description=description, fields=items)
         
+class EventNotificationEmbed(Embed):
+    
+    def __init__(self, event, change_type):
+        author = { # TODO: better icons
+          'new': "\U0001f304  New event scheduled",
+          'del': "\U0001f303  An event was deleted",
+          'mod': "\U0001f308  An event was modified"
+        }[change_type]
+        title = event['summary']
+        try:
+            desc = event['description']
+        except KeyError:
+            desc = ""
+        try:
+            loc = event['location']
+        except KeyError:
+            loc = None
+        fields = []
+        if loc:
+            fields.append(EmbedField(
+              name = 'Location',
+              value = loc
+            ))
+        st = datetime.datetime.fromisoformat(event['start']['dateTime'])
+        fields.append(EmbedField(name='Scheduled for', value=f'<t:{int(st.timestamp())}:F>', inline=True))
+        nd = datetime.datetime.fromisoformat(event['end']['dateTime'])
+        delta = str(nd-st).split('.')[0]
+        fields.append(EmbedField(name='Duration:', value=delta, inline=True))
+        super().__init__(title=title, description=desc, fields=fields)
+        self.set_author(name=author)
+        
+                
+            

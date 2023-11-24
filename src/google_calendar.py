@@ -183,7 +183,8 @@ class CalendarApiLink:
             resp = self.__c.events().list(
                 calendarId=cal,
                 singleEvents=True,
-                syncToken=self.__watched_cals[cal]['tok']
+                syncToken=self.__watched_cals[cal]['tok'],
+                showDeleted=True,
             ).execute() # TODO: catch expired token, do manual update
             #print("Old sync token for ", resp.get('summary'), ':  ', self.__watched_cals[cal]['tok'])
             #print("New sync token for", resp.get('summary'), ':  ', resp.get('nextSyncToken'))
