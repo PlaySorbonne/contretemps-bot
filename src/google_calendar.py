@@ -7,7 +7,7 @@ from uuid import uuid4
 from googleapiclient.discovery import build
 import json
 from googleapiclient.errors import HttpError
-from  google.auth.exceptions import OAuthError, GoogleAuthError
+from  google.auth.exceptions import OAuthError, GoogleAuthError, RefreshError
 
 from datetime import datetime, timedelta
 
@@ -89,9 +89,13 @@ class CalendarApiLink:
         )
         if (not creds.valid):
             if creds.expired and creds.refresh_token:
-                creds.refresh(Request())
+                try: 
+                    creds.refresh(Request())
+                except RefreshError:
+                    raise CalendarApiLink.BadCredentials("token no longer valid")
+                    
             else:
-                raise BadCredentials("bad :((")
+                raise CalendarApiLink.BadCredentials("bad :((")
         self.__c = build('calendar', 'v3', credentials=creds)
         tmp = build('oauth2', 'v2', credentials=creds)
         uinfo = tmp.userinfo().get().execute()

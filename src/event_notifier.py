@@ -64,6 +64,8 @@ class EventNotifier:
         
     
     async def update(self, modifs): #TODO : make it async 
+        if (self.__link is None):
+            return
         d = Data()
         for cal in modifs:
             for watched in d.get_all_watched_cals_for_cal(self.__server_id, cal):

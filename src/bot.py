@@ -299,6 +299,8 @@ def MakeSummaryForm(guild):
 async def make_summary(ctx):
     if (server_notifiers[ctx.guild.id].connected):
         await ctx.respond("", view=MakeSummaryForm(ctx.guild), ephemeral=True)
+    else:
+        await ctx.respond("You are not connected to GoogleAgenda, do /connect", ephemeral=True)
 
 
 
