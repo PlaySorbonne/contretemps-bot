@@ -11,7 +11,7 @@ from threading import Event, get_ident
 import datetime
 
 
-token = open('.env', 'r').read()
+token = open('.discord_token', 'r').read()
 
 
 bot = discord.Bot()

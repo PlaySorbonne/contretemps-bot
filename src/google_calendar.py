@@ -183,9 +183,8 @@ class CalendarApiLink:
                 singleEvents=True,
                 syncToken=self.__watched_cals[cal]['tok'],
                 showDeleted=True,
-            ).execute() # TODO: catch expired token, do manual update
-            #print("Old sync token for ", resp.get('summary'), ':  ', self.__watched_cals[cal]['tok'])
-            #print("New sync token for", resp.get('summary'), ':  ', resp.get('nextSyncToken'))
+            ).execute()
+            # TODO: catch expired token, do manual update (should be done on the event_notifier level to update the db too)
             newevnts, newtok = resp.get('items'), resp.get('nextSyncToken')
             self.__watched_cals[cal]['tok'] = newtok
             evlist = self.__watched_cals[cal]['events']
