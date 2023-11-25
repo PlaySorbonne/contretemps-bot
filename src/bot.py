@@ -60,7 +60,8 @@ class ConnectModal(discord.ui.Modal):
         creds = self.__x.get_credentials(self.children[0].value)
         #print(server_notifiers, "SNN")
         #print(self.gid)
-        #TODO : clear everything from old connection if we reconnect
+        #TODO : clear everything from old connection if we reconnect (check if emails correspond, warn users if change)
+        #TODO : handle token expiration mid connection everywhere (in event_notifier) 
         mail = server_notifiers[self.gid].connect(creds, [])
         await interaction.response.send_message(f"Connected succesfully as {mail}", ephemeral=True)
 
@@ -161,7 +162,7 @@ def AddWatchForm(guild):
                     else : 
                         server_notifiers[gid].add_watch(self.channel, self.cal, self.upd_new, self.upd_mod, self.upd_del,hey) 
                         await self.message.delete()
-                        await interaction2.response.send_message(f'Succesfully added notifier')
+                        await interaction2.response.send_message(f'Succesfully added notifier', ephemeral=True)
                 modal = ActionModal("Please enter a notifier name which is unique", cback, "Name")
                 await interactions.response.send_modal(modal)
             else:
@@ -200,7 +201,7 @@ def MakeSummaryForm(guild):
             self.duration = 7
             self.in_months = 0
             self.base_day = today
-            self.header = "" # TODO : Header !!
+            self.header = ""
             
         
         @discord.ui.select(

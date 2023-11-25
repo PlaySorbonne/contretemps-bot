@@ -87,15 +87,13 @@ class CalendarApiLink:
             json.loads(auth_creds),
             scopes=GAPI_CALENDAR_SCOPES
         )
-        if (not creds.valid):
-            if creds.expired and creds.refresh_token:
-                try: 
-                    creds.refresh(Request())
-                except RefreshError:
-                    raise CalendarApiLink.BadCredentials("token no longer valid")
-                    
-            else:
-                raise CalendarApiLink.BadCredentials("bad :((")
+        if creds.refresh_token:
+            try: 
+                creds.refresh(Request())
+            except RefreshError:
+                raise CalendarApiLink.BadCredentials("token no longer valid")
+        else:
+            raise CalendarApiLink.BadCredentials("bad :((")
         self.__c = build('calendar', 'v3', credentials=creds)
         tmp = build('oauth2', 'v2', credentials=creds)
         uinfo = tmp.userinfo().get().execute()
