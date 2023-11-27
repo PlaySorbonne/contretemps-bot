@@ -6,7 +6,6 @@ from discord.ext import tasks
 from event_notifier import EventNotifier
 from google_calendar import GoogleAuthentifier
 
-from threading import Event, get_ident
 
 import datetime
 
@@ -26,10 +25,13 @@ async def on_ready():
     #print("Found the chroniclebot embed :", e)
 
 @bot.event
-async def on_message(m):
-    return
+async def on_guild_join(guild):
+    server_notifiers[guild.id] = EventNotifier(guild.id, bot)
 
-#TODO on_join_guild et on_ban_de_guild
+@bot.event
+async def on_guild_remove(guild):
+    pass # do we delete the guild configuration or just keep it ?
+
 #TODO TODO add roles and permissions : not anyone should be able to do the thing
 
 #TODO : restucture (and split) this file into multiple files (maybe one module per command grouped in a package?)
@@ -83,7 +85,7 @@ async def connect(ctx):
 def AddWatchForm(guild):
     gid = guild.id
     cals = server_notifiers[gid].get_all_calendars()
-    channels = guild.channels
+    channels = [c for c in guild.channels if isinstance(c, discord.abc.Messageable)]
     class AddWatchForm(discord.ui.View):
         
         def __init__(self):
@@ -174,7 +176,7 @@ def AddWatchForm(guild):
 @bot.slash_command(description="Add a new calendar watch.")
 async def add_new_event_notifier(ctx):
     if (server_notifiers[ctx.guild.id].connected):
-        await ctx.respond("Adding new watch...", view=AddWatchForm(ctx.guild), ephemeral=True) #TODO : NAMED COMMAND
+        await ctx.respond("Adding new watch...", view=AddWatchForm(ctx.guild), ephemeral=True)
     else:
         await ctx.respond("You are not connected to GoogleAgenda, do /connect")
 
@@ -216,7 +218,6 @@ def MakeSummaryForm(guild):
             self.watched_cal = cals[int(i)]
             select.placeholder = formated[int(i)]
             await interaction.response.edit_message(view=self)
-            #await interaction.response.send_message(f"You have chosen  {select.values[0]}.")
         
         @discord.ui.button(label = f"Starting on day: {today}", style=discord.ButtonStyle.primary, row=1)
         async def select_callback_2(self, button, interaction):
@@ -230,7 +231,7 @@ def MakeSummaryForm(guild):
                 except ValueError:
                     await interaction2.response.send_message(f'"{when}" is an invalid date format.', ephemeral=True)
             modal = ActionModal("Starting day in format YYYY-MM-DD HH:MM", cback, "Start summary time")
-            await interaction.response.send_modal(modal) #TODO TODO : command to check next update for summary
+            await interaction.response.send_modal(modal) #TODO TODO : command to make the bot tell next update for summary
         
         @discord.ui.button(label="Reset every 7...", style=discord.ButtonStyle.primary, row=2)
         async def select_callback_10(self, button, interaction):
@@ -272,7 +273,7 @@ def MakeSummaryForm(guild):
             if self.watched_cal is not None:
                 async def cback(self2, interaction):
                     hey = self2.children[0].value
-                    if not server_notifiers[gid].check_summary_uniqueness(self.watched_cal['watch_id'],hey): #TODO this check is not working 
+                    if not server_notifiers[gid].check_summary_uniqueness(self.watched_cal['watch_id'],hey): 
                         await self.message.edit('A summary with that name already exists...')
                         await interaction.response.defer()
                     else : 

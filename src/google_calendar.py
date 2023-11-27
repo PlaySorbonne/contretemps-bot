@@ -12,7 +12,7 @@ from  google.auth.exceptions import OAuthError, GoogleAuthError, RefreshError
 from datetime import datetime, timedelta
 
 
-from discord.ext import tasks #TODO : check if tasks run in parallel
+from discord.ext import tasks
 
 
 GAPI_CALENDAR_SCOPES = [
@@ -22,12 +22,17 @@ GAPI_CALENDAR_SCOPES = [
 ]    
 
 class GoogleAuthentifier:
-    """ Allows to obtain login credentials for some account
-    Once created, get_url() gives an url than can be passed
+    """ 
+    Allows to obtain login credentials for some account
+    
+    Once created, o.get_url() gives an url than can be passed
     to the user, then the user uses the url to authentify and
-    obtain a code, then get_credentials(code) allows to obtain
+    obtain a code, then o.get_credentials(code) allows to obtain
     credentials than can be stored and used to start an API
     session.
+    
+    Once the credentials are obtained, o.get_account_info() 
+    allows to get the email of the connected account.
     """
     
     def __init__(self):
@@ -156,7 +161,7 @@ class CalendarApiLink:
         )
         return res
     
-    def get_period_events(self, calendarId, start, end): #TODO handle timezones ?
+    def get_period_events(self, calendarId, start, end): 
         start = start.isoformat()+'Z'
         end = end.isoformat()+'Z'
         res = (

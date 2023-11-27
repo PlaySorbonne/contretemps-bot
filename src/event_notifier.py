@@ -1,5 +1,5 @@
 
-from database import db,Data
+from database import Data
 
 from discord.ext import tasks 
 from discord import Embed, EmbedField
@@ -19,7 +19,7 @@ class EventNotifier:
     def __init__(self, server_id, bot):
         self.__b = bot
         self.__server_id = server_id
-        state = db.check_server_connexion(server_id)
+        state = Data().check_server_connexion(server_id)
         #print("Server Id here :\n")
         watched_cals = Data().get_all_watched_cals(server_id)
         #print("WATCHED CALS : ", watched_cals)
@@ -57,7 +57,7 @@ class EventNotifier:
             'calendar_id': cal_id,
             'calendar_name':'',
         }
-        db.insert_cols_in_table('watched_calendar', [new_col])
+        Data().insert_cols_in_table('watched_calendar', [new_col])
         self.__link.watch_calendar(cal_id)
         
     
@@ -65,13 +65,13 @@ class EventNotifier:
         return Data().get_all_watched_cals(self.__server_id)        
         
     
-    async def update(self, modifs): #TODO : make it async 
+    async def update(self, modifs):
         if (self.__link is None):
             return
+        #TODO handle timezones ?
         d = Data()
         for cal in modifs:
             for watched in d.get_all_watched_cals_for_cal(self.__server_id, cal):
-                #TODO: delete old messages
                 for e in modifs[cal]:
                     if not True : #TODO self.filter_tags(e['tags'], watched['filter']):
                         continue
@@ -92,15 +92,11 @@ class EventNotifier:
                         if watched['updates_mod']:
                             change = 'mod'
                     if change:
-                        #print("WATCHED:", watched['channel_id'])
                         u = await self.__b.get_channel(int(watched['channel_id'])).send("", embed=EventNotificationEmbed(e, change))
                         # TODO : store this message and delete it when new update / when the watch is deleted
-                        #t = self.__b.loop.create_task(u)
                 # Handling all the summaries attached to the watch
                 summaries = d.get_watch_summaries(self.__server_id, watched['watch_id'])
-                #print("Summaries:", summaries)
                 for s in summaries:
-                    #print(f"Doing '{s['summary_id']}', total number of summaries : {len(summaries)}")
                     new_evs = self.get_summary_events(s)
                     new_embd = self.make_daily_embed(s['summary_id'], "", new_evs)
                     m = None
@@ -114,7 +110,6 @@ class EventNotifier:
                     else:
                         m = await self.__b.get_channel(int(watched['channel_id'])).send(content=s['header'], embed=new_embd)
                         d.modify_summary_message(s, str(m.id))
-                    #print(f"Ended '{s['summary_id']}', total number of summaries : {len(summaries)}")
     
     @tasks.loop(seconds=5)
     async def check_summaries(self):
@@ -127,7 +122,7 @@ class EventNotifier:
                 base_date = datetime.datetime.fromisoformat(s['base_date'])
                 delta = EventNotifier.parse_delta(s['frequency'])
                 now = datetime.datetime.now()
-                if (now > base_date+delta): #TODO: check date sanity when creating a summary (in bot.py)
+                if (now > base_date+delta): 
                     print("Found finished summary")
                     while (now > base_date+delta):
                         base_date += delta
@@ -157,7 +152,7 @@ class EventNotifier:
     async def clear_summaries(self, watch_id, d=None):
         if d is None: d=Data()
         for s in d.get_watch_summaries(self.__server_id, watch_id):
-            await self.delete_summary(s['watch_id'], s['summary_id'], d)#TODO : redundant db requests
+            await self.delete_summary(s['watch_id'], s['summary_id'], d) #redundant db requests :[
     
     async def delete_summary_message(self, summary, watch=None, upd_db=False, d=None):
         if d is None: d=Data()
@@ -199,7 +194,6 @@ class EventNotifier:
     async def add_summary(self, watch_cal, duration, in_months, base_day, header, name):
         base_day_repr = base_day.isoformat()
         duration = relativedelta(months=duration) if in_months else relativedelta(days=duration)
-        #TODO print the message
         new_col = {
             'server_id': self.__server_id,
             'watch_id' :watch_cal['watch_id'],
@@ -215,14 +209,13 @@ class EventNotifier:
         u = await self.__b.get_channel(int(watch['channel_id'])).send(new_col['header'], embed=embed)
         new_col['message_id'] = str(u.id)
         Data().insert_cols_in_table('event_summary', [new_col])
-        #self.__b.loop.create_task(u)
         
     
     # TODO TODO
     def filter_tags(self, tags, filt):
         return True 
     
-    def get_summary_events(self, summary): #TODO update_summary_dates
+    def get_summary_events(self, summary):
         base_date = datetime.datetime.fromisoformat(summary['base_date'])
         locs=dict()
         exec(f'duration = {summary["frequency"]}', globals(), locs)
@@ -241,7 +234,6 @@ class EventNotifier:
                 'title': e['summary'],
                 'start': start,
                 'end': end,
-                'color': '008000' #TODO correct handling of colors, color endpoint in the cal api
             }
             if not l or  day > l[-1][0]:
                 l.append((day, []))
@@ -277,7 +269,7 @@ class DailyEmbed(Embed):
 class EventNotificationEmbed(Embed):
     
     def __init__(self, event, change_type):
-        author = { # TODO: better icons
+        author = { # todo : better icons ? 
           'new': "\U0001f304  New event scheduled",
           'del': "\U0001f303  An event was deleted",
           'mod': "\U0001f308  An event was modified"
