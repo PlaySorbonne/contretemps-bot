@@ -20,13 +20,13 @@ server_notifiers = dict()
 @bot.event
 async def on_ready():
     async for guild in bot.fetch_guilds(limit=150):
-        server_notifiers[guild.id] = EventNotifier(guild.id, bot)
+        server_notifiers[guild.id] = EventNotifier(guild.id, guild.name, bot)
     #e = await (await bot.get_channel(1174715386390921247).fetch_message('1174715386390921247/1177257128772259850'))
     #print("Found the chroniclebot embed :", e)
 
 @bot.event
 async def on_guild_join(guild):
-    server_notifiers[guild.id] = EventNotifier(guild.id, bot)
+    server_notifiers[guild.id] = EventNotifier(guild.id, guild.name, bot)
 
 @bot.event
 async def on_guild_remove(guild):
@@ -57,14 +57,8 @@ class ConnectModal(discord.ui.Modal):
         self.add_item(discord.ui.InputText(label="Enter the authentification code: ", style=discord.InputTextStyle.long))
     
     async def callback(self, interaction):
-        #embed = discord.Embed(title="Modal results")
-        #embed.add_field(name="Long Input", value=self.children[0].value)
         creds = self.__x.get_credentials(self.children[0].value)
-        #print(server_notifiers, "SNN")
-        #print(self.gid)
-        #TODO : clear everything from old connection if we reconnect (check if emails correspond, warn users if change)
-        #TODO : handle token expiration mid connection everywhere (in event_notifier) 
-        mail = server_notifiers[self.gid].connect(creds, [])
+        mail = server_notifiers[self.gid].connect(creds)
         await interaction.response.send_message(f"Connected succesfully as {mail}", ephemeral=True)
 
 def ConnectView(guildid, x):
@@ -82,9 +76,9 @@ async def connect(ctx):
 
 
 
-def AddWatchForm(guild):
+def AddWatchForm(guild, cals):
     gid = guild.id
-    cals = server_notifiers[gid].get_all_calendars()
+    #cals = server_notifiers[gid].get_all_calendars()
     channels = [c for c in guild.channels if isinstance(c, discord.abc.Messageable)]
     class AddWatchForm(discord.ui.View):
         
@@ -101,7 +95,7 @@ def AddWatchForm(guild):
             placeholder = "Choose a calendar",
             min_values=1,
             max_values=1,
-            options = [ discord.SelectOption(label=e['name'], value=e['id']) for e in cals ],
+            options = [ discord.SelectOption(label=e['name'], value=e['id']) for e in cals ] if cals else [],
             row=0
         )
         async def select_callback_1(self, select, interaction):
@@ -109,7 +103,6 @@ def AddWatchForm(guild):
             only_val = [so.label for so in select.options if so.value == self.cal][0]
             select.placeholder = only_val
             await interaction.response.edit_message(view=self)
-            #await interaction.response.send_message(f"You have chosen  {select.values[0]}.")
         
         @discord.ui.select(
             placeholder = "Choose a channel",
@@ -162,7 +155,7 @@ def AddWatchForm(guild):
                         await self.message.edit('An event notifier with that name already exists...')
                         await interaction2.response.defer()
                     else : 
-                        server_notifiers[gid].add_watch(self.channel, self.cal, self.upd_new, self.upd_mod, self.upd_del,hey) 
+                        await server_notifiers[gid].add_watch(self.channel, self.cal, self.upd_new, self.upd_mod, self.upd_del,hey) 
                         await self.message.delete()
                         await interaction2.response.send_message(f'Succesfully added notifier', ephemeral=True)
                 modal = ActionModal("Please enter a notifier name which is unique", cback, "Name")
@@ -175,10 +168,11 @@ def AddWatchForm(guild):
 
 @bot.slash_command(description="Add a new calendar watch.")
 async def add_new_event_notifier(ctx):
+    cals = server_notifiers[ctx.guild.id].get_all_calendars()
     if (server_notifiers[ctx.guild.id].connected):
-        await ctx.respond("Adding new watch...", view=AddWatchForm(ctx.guild), ephemeral=True)
+        await ctx.respond("Adding new watch...", view=AddWatchForm(ctx.guild, cals), ephemeral=True)
     else:
-        await ctx.respond("You are not connected to GoogleAgenda, do /connect")
+        await ctx.respond("You are not connected to GoogleAgenda, do /connect", ephemeral=True)
 
 
 

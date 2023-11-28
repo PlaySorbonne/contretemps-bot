@@ -10,6 +10,7 @@ from googleapiclient.errors import HttpError
 from  google.auth.exceptions import OAuthError, GoogleAuthError, RefreshError
 
 from datetime import datetime, timedelta
+from inspect import iscoroutinefunction
 
 
 from discord.ext import tasks
@@ -85,6 +86,42 @@ class CalendarApiLink:
     def as_dict(event_list):
         return { e['id']:e for e in event_list }
             
+    @staticmethod
+    def might_refresh_error(pass_as=None, msg=""):
+        """
+        Decorator for handling an unexpected token expiration/revocation
+        """
+        def dec(f):
+            if not iscoroutinefunction(f):
+                def new_f(*args, **kwargs):
+                    if (not args[0].__valid):
+                        if pass_as:
+                            raise pass_as(msg)
+                        else:
+                            return
+                    try:
+                        return f(*args, **kwargs)
+                    except RefreshError:
+                        args[0].__valid = False
+                        args[0].update.stop()
+                        if (pass_as):
+                            raise pass_as(msg)
+            else: # this is a quite ugly copy-paste :[[
+                async def new_f(*args, **kwargs): 
+                    if (not args[0].__valid):
+                        if pass_as:
+                            raise pass_as(msg)
+                        else:
+                            return
+                    try:
+                        return await f(*args, **kwargs)
+                    except RefreshError:
+                        args[0].__valid = False
+                        args[0].update.stop()
+                        if (pass_as):
+                            raise pass_as(msg)
+            return new_f
+        return dec
     
     
     def __init__(self, auth_creds, watched_cals, callback):
@@ -105,9 +142,9 @@ class CalendarApiLink:
         self.__email = uinfo['email']
         self.__id = uinfo['id']
         self.__pic = uinfo['picture']
+        self.__valid = True
         self.__watched_cals = dict()
         for cal in watched_cals:
-            #print("DOING CURRENT CAL :", cal)
             self.watch_calendar(cal)
             
         self.__callback = callback
@@ -135,8 +172,10 @@ class CalendarApiLink:
             'events':CalendarApiLink.as_dict(resp.get('items')),
             'tok':resp.get('nextSyncToken')
         }
+        return True
         
     
+    @might_refresh_error(BadCredentials)
     def get_calendars(self):
         cals = self.__c.calendarList().list().execute().get('items')
         return [ {'id':c['id'], 
@@ -146,6 +185,7 @@ class CalendarApiLink:
                  for c in cals
                ]
     
+    might_refresh_error(BadCredentials)
     def get_next_events(self, calendar_id, days):
         now_dt = datetime.utcnow()
         now = now_dt.isoformat()+'Z'
@@ -161,6 +201,7 @@ class CalendarApiLink:
         )
         return res
     
+    @might_refresh_error(BadCredentials)
     def get_period_events(self, calendarId, start, end): 
         start = start.isoformat()+'Z'
         end = end.isoformat()+'Z'
@@ -175,11 +216,13 @@ class CalendarApiLink:
         )
         return res
     
+    @might_refresh_error(BadCredentials)
     def get_all_events(self, calendar_id):
         return self.__watched_cals[calendar_id]['events']
     
     
     @tasks.loop(seconds=5)
+    @might_refresh_error()
     async def update(self):
         modified = dict()
         for cal in self.__watched_cals:

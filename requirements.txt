@@ -1,4 +1,5 @@
+py-cord==2.4.1 # pip will try to replace this with discord.py when generating the file
 google_api_python_client==2.107.0
 google_auth_oauthlib==1.1.0
-ischedule==1.2.6
 protobuf==3.12.4
+python_dateutil==2.8.1

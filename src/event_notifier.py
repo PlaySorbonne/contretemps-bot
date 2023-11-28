@@ -16,35 +16,35 @@ from dateutil.utils import within_delta
 
 class EventNotifier:
 
-    def __init__(self, server_id, bot):
+    def __init__(self, server_id, server_name, bot):
         self.__b = bot
         self.__server_id = server_id
+        self.__name = server_name
         state = Data().check_server_connexion(server_id)
-        #print("Server Id here :\n")
-        watched_cals = Data().get_all_watched_cals(server_id)
-        #print("WATCHED CALS : ", watched_cals)
-        cals = [c['calendar_id'] for c in watched_cals]
-        print("CALS:", cals)
-        self.connect(state['gtoken'], cals)
+        self.connect(state['gtoken'])
         self.check_summaries.start()
+        print("Succesfully configured", self.__name)
         
         
-    def connect(self, tok, cals):
+    def connect(self, tok):
+        watched_cals = Data().get_all_watched_cals(self.__server_id)
+        cals = [c['calendar_id'] for c in watched_cals]
+        #print("CALS:", cals)
         if (tok):
             try:
-                #print("NOW IN CONNECTING, CALS : ", cals)
                 self.__link = CalendarApiLink(tok, cals, self.update)
                 Data().set_server_connexion(self.__server_id, tok, self.__link.get_email())
+                # TODO : check for email (account) change, which would dismiss all old watched_calendars
                 self.connected = True
                 return self.__link.get_email()
             except CalendarApiLink.BadCredentials:
                 self.__link = None
+                # TODO : put NULL as tok in the db
         else:
             self.__link = None
         self.connected = self.__link is not None
     
-    
-    def add_watch(self, channel_id, cal_id, new, dele, mod, name):
+    async def add_watch(self, channel_id, cal_id, new, dele, mod, name):
         new_col = {
             'server_id': self.__server_id,
             'watch_id': name,
@@ -58,7 +58,14 @@ class EventNotifier:
             'calendar_name':'',
         }
         Data().insert_cols_in_table('watched_calendar', [new_col])
-        self.__link.watch_calendar(cal_id)
+        r = self.safe_calendar_call(
+            lambda : self.__link.watch_calendar(cal_id)
+        )
+        if not r:
+            await self.__b.get_channel(int(channel_id)).send(
+              "Warning : I am disconnected from the Google Account",
+              delete_after=60
+            )
         
     
     def get_all_watched_cals(self):
@@ -92,12 +99,20 @@ class EventNotifier:
                         if watched['updates_mod']:
                             change = 'mod'
                     if change:
-                        u = await self.__b.get_channel(int(watched['channel_id'])).send("", embed=EventNotificationEmbed(e, change))
+                        u = await self.__b.get_channel(int(watched['channel_id'])).send(
+                          "",
+                          embed=EventNotificationEmbed(e, change)
+                        )
                         # TODO : store this message and delete it when new update / when the watch is deleted
                 # Handling all the summaries attached to the watch
                 summaries = d.get_watch_summaries(self.__server_id, watched['watch_id'])
                 for s in summaries:
                     new_evs = self.get_summary_events(s)
+                    if (new_evs is None):
+                        await self.__b.get_channel(int(watched['channel_id'])).send(
+                          f'Warning : I am diconnected from Google, summary {s["summary_id"]} not updated'
+                        )
+                        continue
                     new_embd = self.make_daily_embed(s['summary_id'], "", new_evs)
                     m = None
                     if s['message_id'] is not None:
@@ -114,7 +129,7 @@ class EventNotifier:
     @tasks.loop(seconds=5)
     async def check_summaries(self):
         if (self.__link is None):
-            return
+            return #TODO : maybe message the admins at least one time ?
         d = Data()
         for w in d.get_all_watched_cals(self.__server_id):
             for s in d.get_watch_summaries(self.__server_id, w['watch_id']):
@@ -173,6 +188,11 @@ class EventNotifier:
         if watch is None:
             watch = d.get_watch(self.__server_id, summary['watch_id'])
         new_evs = self.get_summary_events(summary)
+        if (new_evs is None):
+            await self.__b.get_channel(int(watch['channel_id'])).send(
+              f'Warning : I am diconnected from Google, summary {summary["summary_id"]} cannot be published'
+            )
+            return
         new_embd = self.make_daily_embed(summary['summary_id'], "", new_evs)
         m = await self.__b.get_channel(int(watch['channel_id'])).send(content=summary['header'], embed=new_embd)
         #summary['message_id'] = str(m.id)
@@ -180,7 +200,11 @@ class EventNotifier:
         
     
     def get_all_calendars(self):
-        return self.__link.get_calendars()          
+        """
+        Returns all the calendars that are currently watched in the server
+        If the google connexion is no longer valid, returns None
+        """
+        return self.safe_calendar_call(lambda:self.__link.get_calendars())          
     
     def get_all_watches(self):
         return Data().get_all_watched_cals(self.__server_id)      
@@ -204,6 +228,13 @@ class EventNotifier:
             'message_id' : None
         }
         events = self.get_summary_events(new_col)
+        if (events is None):
+            await self.__b.get_channel(int(watch_cal['channel_id'])).send(
+              f'Warning : I am diconnected from Google, summary {name} not published'
+            )
+            # We remember the summary for future publication
+            Data().insert_cols_in_table('event_summary', [new_col])
+            return
         embed = self.make_daily_embed(new_col['summary_id'], "", events)
         watch = Data().get_watch(self.__server_id, new_col['watch_id'])
         u = await self.__b.get_channel(int(watch['channel_id'])).send(new_col['header'], embed=embed)
@@ -216,12 +247,18 @@ class EventNotifier:
         return True 
     
     def get_summary_events(self, summary):
+        """
+        Returns a list of the next events for a summary
+        If the connexion to the calendar is no longer valid, returns None
+        """
         base_date = datetime.datetime.fromisoformat(summary['base_date'])
         locs=dict()
         exec(f'duration = {summary["frequency"]}', globals(), locs)
         end_date = base_date+locs['duration']
         watch = Data().get_watch(summary['server_id'], summary['watch_id'])
-        events = self.__link.get_period_events(watch['calendar_id'], base_date, end_date)
+        events = self.safe_calendar_call(
+            lambda : self.__link.get_period_events(watch['calendar_id'], base_date, end_date)
+        )
         return events
     
     def make_daily_embed(self, title, description, events):
@@ -245,7 +282,20 @@ class EventNotifier:
         env = dict()
         exec(f'ret = {s}', globals(), env)
         return env['ret'] 
-            
+    
+    def safe_calendar_call(self, call):
+        if self.__link is None:
+            return None
+        try :
+            r = call()
+            # if call returns no useful info, we return True to report that it succeeded
+            if r is None : return True
+            return r
+        except CalendarApiLink.BadCredentials:
+            self.__link = None
+            self.connected = False
+            # TODO is it helpful/necessary to nullify the token in db here?
+            return None
 
 class DailyEmbed(Embed):
     
