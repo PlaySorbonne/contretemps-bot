@@ -277,6 +277,23 @@ class EventNotifier:
             l[-1][1].append(value)
         return DailyEmbed(title, description, l)
     
+    
+    def set_access(self, uid, mention, l):
+        if (l == 0):
+            Data().delete_access(self.__server_id, str(uid))
+        else:
+            Data().set_access(self.__server_id, str(uid), mention, l)
+    
+    def get_access_level(self, author):
+        return max(
+            max(Data().get_access(self.__server_id, str(r.id)) for r in author.roles),   
+            Data().get_access(self.__server_id, str(author.id))
+        )
+    
+    def list_access_levels(self):
+        return Data().get_access_levels(self.__server_id)
+    
+    
     @staticmethod
     def parse_delta(s):
         env = dict()

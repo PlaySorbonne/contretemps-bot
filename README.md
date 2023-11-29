@@ -14,7 +14,8 @@ An event notifier allows to associate a calendar with a Discord text channel. Th
 ### Event Summaries
 Given an Event Notifier, one can have the bot to regularly send a summary of all the events in the calendar over a specified period (for example, sending the summary of the events for the week each Monday morning). This aims to replicate [this functionality in the Chronicle Bot](https://chroniclebot.com/docs/notifier/event-summaries).
 One can configure a summary using the `/make_summary` command. 
-
+### Access
+When the bot joins the server, only the server owner can use the commands. One can allow other users or roles the right to use the commands with the command `/set_access`. There are three access levels: 0 is the default one, 1 allows to create and edit summaries and notifiers, and 2 allows to also edit the access levels of other users. The command `/list_access` allows to view the current access levels.
 
 ## Hosting
 Here are the steps to run the bot :
@@ -63,7 +64,7 @@ Access to the database is done through an instance of the Data class in [databas
 
 ### TODO
 #### Fixes/Adjustments in the already implemented things to make it usable
-- [ ] Add a permission system, with specifying the roles allowed to configure notifiers and summaries.
+- [x] Add a permission system, with specifying the roles allowed to configure notifiers and summaries.
 - [ ] Add commands to visualize current notifiers and summaries, and to modify/delete one.
 - [x] Handle token expiration for the google calendar API. It is only handle on first connection for now. It needs to be checked in the `update()` method of CalendarApiLink, which needs to hold an attribute it sets when the token expires. It also needs to be checked in every EventNotifier method that makes API calls through CalendarApiLink, and it needs to put itself in a disconnected state if the token expires.
 - [ ] When there is a re-connection attempt after a disconnection, check if it is the same google account, otherwise ask the user if we should delete all the old notifiers and summaries

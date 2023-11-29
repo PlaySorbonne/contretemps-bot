@@ -9,6 +9,7 @@ from google_calendar import GoogleAuthentifier
 
 import datetime
 
+import functools
 
 token = open('.discord_token', 'r').read()
 
@@ -32,7 +33,27 @@ async def on_guild_join(guild):
 async def on_guild_remove(guild):
     pass # do we delete the guild configuration or just keep it ?
 
-#TODO TODO add roles and permissions : not anyone should be able to do the thing
+
+
+def access_control(lvl):
+    """
+    Decorator that protects a command under some access level
+    Levels range from 0 to 2:
+      - 0 for a command needing no privilege
+      - 1 for commands setting up and configuring the notifier
+      - 2 for handling access levels of other members
+    """
+    def dec(f):
+        @functools.wraps(f)
+        async def new_f(ctx: discord.ApplicationContext, *args, **kwargs):
+            l = server_notifiers[ctx.guild.id].get_access_level(ctx.author)
+            if ctx.author == ctx.guild.owner or l >= lvl :
+                await f(ctx, *args, **kwargs)
+            else:
+                await ctx.respond(f"This command requires an an access level of {lvl}, but you have {l}.", ephemeral=True)
+        return new_f
+    return dec 
+
 
 #TODO : restucture (and split) this file into multiple files (maybe one module per command grouped in a package?)
 
@@ -70,6 +91,7 @@ def ConnectView(guildid, x):
     return ConnectView()
 
 @bot.slash_command(description="Connect to Google Agenda.")
+@access_control(2)
 async def connect(ctx):
     x = GoogleAuthentifier()
     await ctx.respond("Get the code at this url then click the button. " + x.get_url(), view=ConnectView(ctx.guild.id, x), ephemeral=True)
@@ -116,7 +138,6 @@ def AddWatchForm(guild, cals):
             only_val = [so.label for so in select.options if so.value == self.channel][0]
             select.placeholder = only_val
             await interaction.response.edit_message(view=self)
-            #await interaction.response.send_message(f"You have chosen  {select.values[0]}.")
         
         @discord.ui.button(label="NewEvents", style=discord.ButtonStyle.success, row=2)
         async def select_callback_3(self, button, interactions):
@@ -167,6 +188,7 @@ def AddWatchForm(guild, cals):
     return AddWatchForm()
 
 @bot.slash_command(description="Add a new calendar watch.")
+@access_control(2)
 async def add_new_event_notifier(ctx):
     cals = server_notifiers[ctx.guild.id].get_all_calendars()
     if (server_notifiers[ctx.guild.id].connected):
@@ -178,7 +200,7 @@ async def add_new_event_notifier(ctx):
 
 
 #TODO: option for extended summary form (showing location/description of events ?)
-def MakeSummaryForm(guild):
+def MakeSummaryForm(guild): #TODO handle if there is no watch (0 elements to select from in the list)
     gid = guild.id
     cals = server_notifiers[gid].get_all_watched_cals()
     formated = []
@@ -284,6 +306,7 @@ def MakeSummaryForm(guild):
 
 
 @bot.slash_command(description="Show a summary of watched events.")
+@access_control(1)
 async def make_summary(ctx):
     if (server_notifiers[ctx.guild.id].connected):
         await ctx.respond("", view=MakeSummaryForm(ctx.guild), ephemeral=True)
@@ -292,9 +315,36 @@ async def make_summary(ctx):
 
 
 
+@bot.slash_command(description="0 for no access, 1 for editings notifiers, 2 for managing access")
+@access_control(2)
+async def set_access(
+    ctx,
+    who : discord.Option(discord.SlashCommandOptionType.mentionable),
+    level : discord.Option(int)
+):
+    if level < 0 or level > 2:
+        await ctx.respond(f'{level} is not a valid level. 0, 1 and 2 are the only valid ones.', ephemeral=True)
+    else:
+        server_notifiers[ctx.guild.id].set_access(who.id, who.mention, level)
+        await ctx.respond(f'Set up access level {level} for {who.mention}', ephemeral=True)
+
+@bot.slash_command(description="Show all the access rules")
+@access_control(2)
+async def list_access(ctx):
+    lvls = server_notifiers[ctx.guild.id].list_access_levels()
+    emoji = { 1 : ':green_square:', 2 : ':red_square:' }
+    ld = { 1 : 'editing notifiers (1)', 2 : 'all rights (2)' }
+    desc = '\n'.join(
+      f'{emoji[u["access_level"]]} {u["mention"]} :  {ld[u["access_level"]]}'
+      for u in lvls
+    )
+    title = "Access levels"
+    await ctx.respond("", embed=discord.Embed(title=title, description=desc), ephemeral=True)
+
 #TODO : Manage notifiers command allowing to VIEW/DELETE/EDIT a notifier
 #TODO : Same thing for summaries
 #TODO : force update all summaries of server
+#TODO : restrict to only guilds (or handle non Member user objects (no roles)
 
 
 bot.run(token)

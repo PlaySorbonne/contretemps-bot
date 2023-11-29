@@ -92,4 +92,51 @@ class Data:
             [d for d in new_data.values()] + [summary['server_id'], summary['watch_id'], summary['summary_id']]
         )
         self.con.commit()
+    
+    
+    def delete_access(self, server_id, thing_id):
+        self.cur.execute(
+            "DELETE FROM user_access WHERE server_id = ? AND thing_id = ?",
+            (server_id, thing_id)
+        )
+        self.con.commit()
+    
+    
+    def set_access(self, server_id, thing_id, mention, access_level):
+        v = self.cur.execute(
+            "SELECT * FROM user_access WHERE server_id = ? AND thing_id = ?",
+            (server_id, thing_id)        
+        ).fetchall()
+        if len(v):
+            self.cur.execute(
+                """UPDATE user_access
+                   SET mention = ?, access_level = ?
+                   WHERE server_id = ? AND thing_id = ?""",
+                (mention, access_level, server_id, thing_id)
+            )
+        else:
+            self.cur.execute(
+                "INSERT INTO user_access VALUES (?,?,?,?)",
+                (server_id,thing_id,mention,access_level)
+            )
+        self.con.commit()
+
+
+    def get_access(self, server_id, thing_id):
+        t = self.cur.execute(
+            "SELECT access_level FROM user_access WHERE server_id = ? AND thing_id = ?",
+            (server_id, thing_id)
+        ).fetchall()
+        if len(t):
+            return t[0]['access_level']
+        else:
+            return 0
+    
+    
+    def get_access_levels(self, server_id):
+        res = self.cur.execute(
+            "SELECT * from user_access WHERE server_id = ?",
+            (server_id,)
+        ).fetchall()
+        return res
 

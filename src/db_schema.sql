@@ -4,6 +4,17 @@ CREATE TABLE server_connexion (
     gmail varchar(100) NULL
 );
 
+
+CREATE TABLE user_access (
+    server_id CHAR(20),
+    thing_id CHAR(20),
+    mention VARCHAR(20),
+    access_level INTEGER,
+    FOREIGN KEY(server_id) REFERENCES server_connexion(server_id),
+    PRIMARY KEY (server_id, thing_id)
+);
+
+
 CREATE TABLE watched_calendar (
     server_id CHAR(20),
     watch_id VARCHAR(20),
