@@ -20,7 +20,9 @@ GAPI_CALENDAR_SCOPES = [
     'https://www.googleapis.com/auth/calendar',
     'https://www.googleapis.com/auth/userinfo.email',
     'openid'
-]    
+]
+
+MAX_AHEAD_LOOKUP = timedelta(days=366)
 
 class GoogleAuthentifier:
     """ 
@@ -86,7 +88,6 @@ class CalendarApiLink:
     def as_dict(event_list):
         return { e['id']:e for e in event_list }
             
-    @staticmethod
     def might_refresh_error(pass_as=None, msg=""):
         """
         Decorator for handling an unexpected token expiration/revocation
@@ -164,10 +165,18 @@ class CalendarApiLink:
     def watch_calendar(self, cal):
         if (cal in self.__watched_cals):
             return
+        before = datetime.now()+MAX_AHEAD_LOOKUP
         resp = self.__c.events().list(
                     calendarId=cal,
+                    timeMax=before.isoformat()+'Z',
                     singleEvents=True,
                    ).execute()
+        while 'nextPageToken' in resp:
+            resp = self.__c.events().list(
+                pageToken = resp['nextPageToken'],
+                calendarId = cal,
+                singleEvents=True
+            ).execute()
         self.__watched_cals[cal] = {
             'events':CalendarApiLink.as_dict(resp.get('items')),
             'tok':resp.get('nextSyncToken')
@@ -185,7 +194,7 @@ class CalendarApiLink:
                  for c in cals
                ]
     
-    might_refresh_error(BadCredentials)
+    @might_refresh_error(BadCredentials)
     def get_next_events(self, calendar_id, days):
         now_dt = datetime.utcnow()
         now = now_dt.isoformat()+'Z'
@@ -232,9 +241,16 @@ class CalendarApiLink:
                 syncToken=self.__watched_cals[cal]['tok'],
                 showDeleted=True,
             ).execute()
-            # TODO: catch expired token, do manual update (should be done on the event_notifier level to update the db too)
-            newevnts, newtok = resp.get('items'), resp.get('nextSyncToken')
-            self.__watched_cals[cal]['tok'] = newtok
+            newevnts = resp.get('items')
+            while 'nextPageToken' in resp:
+                resp = self.__c.events().list(
+                    calendarId = cal,
+                    singleEvents = True, 
+                    showDeleted = True,
+                    pageToken = resp['nextPageToken']
+                )
+                newevnts += resp.get('items')
+            self.__watched_cals[cal]['tok'] = resp['nextSyncToken']
             evlist = self.__watched_cals[cal]['events']
             for ev in newevnts:
                 if (ev['status'] == 'cancelled'):
