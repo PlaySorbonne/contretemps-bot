@@ -341,6 +341,38 @@ async def list_access(ctx):
     title = "Access levels"
     await ctx.respond("", embed=discord.Embed(title=title, description=desc), ephemeral=True)
 
+
+
+
+async def get_notifier_names(ctx):
+    return server_notifiers[ctx.interaction.guild.id].get_watches_names()
+async def get_summary_names(ctx):
+    watch_id = ctx.options['notifier']
+    return server_notifiers[ctx.interaction.guild.id].get_summaries_names(watch_id)
+
+@bot.slash_command(description="Delete an Event Summary")
+@access_control(1)
+async def delete_summary(
+    ctx,
+    notifier : discord.Option(str, autocomplete=discord.utils.basic_autocomplete(get_notifier_names)),
+    summary : discord.Option(str, autocomplete=discord.utils.basic_autocomplete(get_summary_names))
+):
+    if await server_notifiers[ctx.guild.id].delete_summary(notifier, summary):
+        await ctx.respond(f"Succesfully deleted the summary {summary}", ephemeral=True)
+    else:
+        await ctx.respond(f"No such summary exists.", ephemeral=True)
+
+@bot.slash_command(description="Delete an Event Notifier")
+@access_control(1)
+async def delete_notifier(
+    ctx, 
+    notifier : discord.Option(str, autocomplete=discord.utils.basic_autocomplete(get_notifier_names))
+):
+    if await server_notifiers[ctx.guild.id].delete_watch(notifier):
+        await ctx.respond(f"Succesfully deleted notifier {notifier} and all its summaries", ephemeral=True)
+    else:
+        await ctx.respond(f"No such notifier", ephemeral=True)
+
 #TODO : Manage notifiers command allowing to VIEW/DELETE/EDIT a notifier
 #TODO : Same thing for summaries
 #TODO : force update all summaries of server

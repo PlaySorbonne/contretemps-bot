@@ -58,6 +58,11 @@ class Data:
         return None if len(val)==0 else val[0] 
     
     
+    def delete_watch(self, server_id, watch_id):
+        self.cur.execute('DELETE FROM watched_calendar WHERE server_id = ? AND watch_id = ?', (server_id, watch_id))
+        self.con.commit()
+    
+    
     def get_summary(self, server_id, watch_id, summary_id):
         val = self.cur.execute("SELECT * FROM event_summary WHERE server_id = ? AND watch_id = ? AND summary_id = ?", (server_id, watch_id, summary_id)).fetchall()
         return None if len(val)==0 else val[0]

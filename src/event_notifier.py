@@ -147,22 +147,27 @@ class EventNotifier:
                     await self.publish_summary(s, d=d)
                     
     
+    async def delete_watch(self, watch_id):
+        d = Data()
+        w = d.get_watch(self.__server_id, watch_id)
+        if w is None:
+            return False
+        S = d.get_watch_summaries(self.__server_id, watch_id)
+        for s in S:
+            await self.delete_summary(watch_id, s['summary_id'], d=d) # redundant requests :[[
+        d.delete_watch(self.__server_id, watch_id)
+        return True
+    
     async def delete_summary(self, watch_id, summary_id, d=None):
         if d is None: d=Data()
         s = d.get_summary(self.__server_id, watch_id, summary_id)
         w = d.get_watch(self.__server_id, watch_id)
         if s is None: #TODO proper logging
             print(f"Did not find summary {summary_id}")
-            return
-        if s['message_id'] is not None:
-             try:
-                m = await self.__b.get_channel(int(w['channel_id'])).fetch_message(int(s['message_id']))
-                if (m.author == self.__b.user): #should be always true but extra check since we're deleting a message
-                    await m.delete()
-             except NotFound: #message does not exist anymore, nothing to do
-                print("Tried to delete message from server, but it did not exist :((((")
-        print(f"Deleting summary {summary_id}")
+            return False
+        await self.delete_summary_message(s, watch=w, upd_db=False, d=d)
         d.delete_summary(self.__server_id, watch_id, summary_id)
+        return True
     
     async def clear_summaries(self, watch_id, d=None):
         if d is None: d=Data()
@@ -241,6 +246,14 @@ class EventNotifier:
         new_col['message_id'] = str(u.id)
         Data().insert_cols_in_table('event_summary', [new_col])
         
+    
+    def get_watches_names(self):
+        W = Data().get_all_watched_cals(self.__server_id)
+        return [w['watch_id'] for w in W]
+    
+    def get_summaries_names(self, watch_id):
+        S = Data().get_watch_summaries(self.__server_id, watch_id)
+        return [s['summary_id'] for s in S]
     
     # TODO TODO
     def filter_tags(self, tags, filt):
