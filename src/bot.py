@@ -129,15 +129,18 @@ def AddWatchForm(guild, cals):
         
         @discord.ui.select(
             placeholder = "Choose a channel",
+            select_type=discord.ComponentType.channel_select,
+            channel_types=[
+                discord.ChannelType.text,
+                discord.ChannelType.public_thread,
+                discord.ChannelType.private_thread
+            ],
             min_values=1,
             max_values=1,
-            options = [ discord.SelectOption(label=c.name, value=str(c.id)) for c in channels ],
             row=1
         )
         async def select_callback_2(self, select, interaction):
-            self.channel = select.values[0]
-            only_val = [so.label for so in select.options if so.value == self.channel][0]
-            select.placeholder = only_val
+            self.channel = str(select.values[0].id)
             await interaction.response.edit_message(view=self)
         
         @discord.ui.button(label="NewEvents", style=discord.ButtonStyle.success, row=2)
@@ -409,7 +412,7 @@ async def list_notifiers(ctx):
 #TODO : Command allowing to EDIT notifiers and summaries
 #TODO : force update all summaries of server
 #TODO : restrict to only guilds (or handle non Member user objects (no roles)
-
+# note to self : autocomplete for slash commands gives max 25 choices
 
 bot.run(token)
 
