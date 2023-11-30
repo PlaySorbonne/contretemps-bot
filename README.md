@@ -66,7 +66,7 @@ Access to the database is done through an instance of the Data class in [databas
 #### Fixes/Adjustments in the already implemented things to make it usable
 - [x] Add a permission system, with specifying the roles allowed to configure notifiers and summaries.
 - [ ] Add commands to visualize current notifiers and summaries, and to modify/delete one.
-    - [ ] Visualize
+    - [x] Visualize
     - [x] Delete
     - [ ] Modify
 - [x] Handle token expiration for the google calendar API. It is only handle on first connection for now. It needs to be checked in the `update()` method of CalendarApiLink, which needs to hold an attribute it sets when the token expires. It also needs to be checked in every EventNotifier method that makes API calls through CalendarApiLink, and it needs to put itself in a disconnected state if the token expires.

@@ -44,7 +44,7 @@ class EventNotifier:
             self.__link = None
         self.connected = self.__link is not None
     
-    async def add_watch(self, channel_id, cal_id, new, dele, mod, name):
+    async def add_watch(self, channel_id, cal, new, dele, mod, name):
         new_col = {
             'server_id': self.__server_id,
             'watch_id': name,
@@ -54,12 +54,12 @@ class EventNotifier:
             'updates_mod': mod,
             'updates_del': dele,
             'replace':'',
-            'calendar_id': cal_id,
-            'calendar_name':'',
+            'calendar_id': cal['id'],
+            'calendar_name':cal['name'],
         }
         Data().insert_cols_in_table('watched_calendar', [new_col])
         r = self.safe_calendar_call(
-            lambda : self.__link.watch_calendar(cal_id)
+            lambda : self.__link.watch_calendar(cal['id'])
         )
         if not r:
             await self.__b.get_channel(int(channel_id)).send(
@@ -212,7 +212,12 @@ class EventNotifier:
         return self.safe_calendar_call(lambda:self.__link.get_calendars())          
     
     def get_all_watches(self):
-        return Data().get_all_watched_cals(self.__server_id)      
+        res = Data().get_all_watched_cals(self.__server_id)
+        return res if res is not None else []
+        
+    def get_all_summaries(self, watch_id):
+        res = Data().get_watch_summaries(self.__server_id, watch_id)
+        return res if res is not None else []
     
     
     def check_summary_uniqueness(self, watch_id, new_name):

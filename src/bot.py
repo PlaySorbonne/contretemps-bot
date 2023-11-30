@@ -1,13 +1,14 @@
 
 import discord
 
-from discord.ext import tasks
+from discord.ext import tasks, pages
 
 from event_notifier import EventNotifier
 from google_calendar import GoogleAuthentifier
 
 
 import datetime
+import dateutil
 
 import functools
 
@@ -121,9 +122,9 @@ def AddWatchForm(guild, cals):
             row=0
         )
         async def select_callback_1(self, select, interaction):
-            self.cal = select.values[0]
-            only_val = [so.label for so in select.options if so.value == self.cal][0]
-            select.placeholder = only_val
+            i = int(select.values[0])
+            self.cal = cals[i]
+            select.placeholder = cals[i]['name']
             await interaction.response.edit_message(view=self)
         
         @discord.ui.select(
@@ -373,8 +374,39 @@ async def delete_notifier(
     else:
         await ctx.respond(f"No such notifier", ephemeral=True)
 
-#TODO : Manage notifiers command allowing to VIEW/DELETE/EDIT a notifier
-#TODO : Same thing for summaries
+
+@bot.slash_command(description="List all notifiers' details")
+@access_control(1)
+async def list_notifiers(ctx):
+    acc = server_notifiers[ctx.guild.id]
+    desc = ""
+    embeds = []
+    for n in acc.get_all_watches():
+        title = f"Event Notifier : {n['watch_id']}"
+        desc =  f"""**Calendar**: {n['calendar_name']}
+                    **Channel**: {ctx.guild.get_channel(int(n['channel_id']))}
+                    **Options**: """ \
+              + ("new events/" if n['updates_new'] else "") \
+              + ("modified events/" if n['updates_mod'] else "") \
+              + ("cancelled events/" if n['updates_del'] else "") \
+              + "\n **Associated Summaries** : "
+        items = [] #TODO : handle when >= 25 summaries
+        for s in acc.get_all_summaries(n['watch_id']):
+            sday = int(datetime.datetime.fromisoformat(s['base_date']).timestamp())
+            freq = str(EventNotifier.parse_delta(s['frequency']))
+            items.append(discord.EmbedField(
+                name=s['summary_id'],
+                value=f"**Base date** : <t:{int(sday)}:F>\n**Frequency**: {freq}"
+            ))
+        embeds.append(discord.Embed(title=title, description = desc, fields=items))
+    mypages = [pages.Page(content="", embeds=[e]) for e in embeds]
+    if mypages:
+        paginator = pages.Paginator(pages=mypages) #TODO : prettier
+        await paginator.respond(ctx.interaction, ephemeral=True)
+    else:
+        await ctx.respond("No notifier found.", ephemeral=True)
+
+#TODO : Command allowing to EDIT notifiers and summaries
 #TODO : force update all summaries of server
 #TODO : restrict to only guilds (or handle non Member user objects (no roles)
 
