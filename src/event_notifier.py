@@ -107,24 +107,8 @@ class EventNotifier:
                 # Handling all the summaries attached to the watch
                 summaries = d.get_watch_summaries(self.__server_id, watched['watch_id'])
                 for s in summaries:
-                    new_evs = self.get_summary_events(s)
-                    if (new_evs is None):
-                        await self.__b.get_channel(int(watched['channel_id'])).send(
-                          f'Warning : I am diconnected from Google, summary {s["summary_id"]} not updated'
-                        )
-                        continue
-                    new_embd = self.make_daily_embed(s['summary_id'], "", new_evs)
-                    m = None
-                    if s['message_id'] is not None:
-                        try :
-                            m = await self.__b.get_channel(int(watched['channel_id'])).fetch_message(int(s['message_id']))
-                        except NotFound:
-                            pass
-                    if m is not None:
-                        await m.edit(content=s['header'], embed=new_embd)
-                    else:
-                        m = await self.__b.get_channel(int(watched['channel_id'])).send(content=s['header'], embed=new_embd)
-                        d.modify_summary_message(s, str(m.id))
+                    await self.update_summary_message(s, watch=watched, d=d)
+
     
     @tasks.loop(seconds=5)
     async def check_summaries(self):
@@ -188,7 +172,23 @@ class EventNotifier:
         if (upd_db):
             d.modify_summary_message(summary, None)
     
-    async def publish_summary(self, summary, watch=None , d=None):
+    async def update_summary_message(self, summary, watch=None, d=None):
+        if watch is None:
+            watch = d.get_watch(self.__server_id, summary['watch_id'])
+        if d is None : d = Data()
+        
+        new_evs = self.get_summary_events(summary)
+        if (new_evs is None):
+            await self.__b.get_channel(int(watch['channel_id'])).send(
+              f'Warning : I am diconnected from Google, summary {summary["summary_id"]} not updated'
+            )
+            return
+        new_embd = self.make_daily_embed("", "", new_evs)
+        m = await self.fetch_message_opt(watch['channel_id'], summary['message_id'])
+        await self.publish_summary(summary, m=m, d=d)
+
+
+    async def publish_summary(self, summary, m=None, watch=None , d=None):
         if d is None: d=Data()
         if watch is None:
             watch = d.get_watch(self.__server_id, summary['watch_id'])
@@ -198,10 +198,13 @@ class EventNotifier:
               f'Warning : I am diconnected from Google, summary {summary["summary_id"]} cannot be published'
             )
             return
-        new_embd = self.make_daily_embed(summary['summary_id'], "", new_evs)
-        m = await self.__b.get_channel(int(watch['channel_id'])).send(content=summary['header'], embed=new_embd)
-        #summary['message_id'] = str(m.id)
-        d.modify_summary(summary, {'message_id' : str(m.id) })
+        content = '# ' + summary['summary_id'] + '\n' + summary['header']
+        new_embd = self.make_daily_embed("", "", new_evs)
+        if m is None :
+            m = await self.__b.get_channel(int(watch['channel_id'])).send(content=content, embeds=new_embd)
+            d.modify_summary(summary, {'message_id' : str(m.id) })
+        else:
+            await m.edit(content=content, embeds=new_embd)
         
     
     def get_all_calendars(self):
@@ -245,11 +248,8 @@ class EventNotifier:
             # We remember the summary for future publication
             Data().insert_cols_in_table('event_summary', [new_col])
             return
-        embed = self.make_daily_embed(new_col['summary_id'], "", events)
-        watch = Data().get_watch(self.__server_id, new_col['watch_id'])
-        u = await self.__b.get_channel(int(watch['channel_id'])).send(new_col['header'], embed=embed)
-        new_col['message_id'] = str(u.id)
         Data().insert_cols_in_table('event_summary', [new_col])
+        await self.publish_summary(new_col)
         
     
     def get_watches_names(self):
@@ -280,20 +280,29 @@ class EventNotifier:
         return events
     
     def make_daily_embed(self, title, description, events):
-        l = []
+        l, mday_l = [],[]
         for e in events: # TODO : Handle(or just ignore) multi-day events
-            day = datetime.datetime.fromisoformat(e['start']['dateTime']).date().isoformat()
-            start = datetime.datetime.fromisoformat(e['start']['dateTime'])
-            end = datetime.datetime.fromisoformat(e['end']['dateTime'])
+            regular = 'dateTime' in e['start']
+            date_field = 'dateTime' if regular else 'date'
+            day = datetime.datetime.fromisoformat(e['start'][date_field]).date().isoformat()
+            start = datetime.datetime.fromisoformat(e['start'][date_field])
+            end = datetime.datetime.fromisoformat(e['end'][date_field])
             value = {
                 'title': e['summary'],
                 'start': start,
                 'end': end,
             }
-            if not l or  day > l[-1][0]:
-                l.append((day, []))
-            l[-1][1].append(value)
-        return DailyEmbed(title, description, l)
+            if regular:
+                if not l or  day > l[-1][0]:
+                    l.append((day, []))
+                l[-1][1].append(value)
+            else :
+                mday_l.append(value)
+        reg_embed = DailyEmbed(title, description, l)
+        if mday_l:
+            multi_embed = MultiDayEmbed("Events that happen across multiple days", mday_l)
+            return [multi_embed, reg_embed]
+        return [reg_embed]
     
     
     def set_access(self, uid, mention, l):
@@ -310,6 +319,14 @@ class EventNotifier:
     
     def list_access_levels(self):
         return Data().get_access_levels(self.__server_id)
+    
+    async def fetch_message_opt(self, cid, mid):
+        if mid is not None:
+            try :
+                return await self.__b.get_channel(int(cid)).fetch_message(int(mid))
+            except NotFound:
+                return None
+        return None
     
     
     @staticmethod
@@ -350,7 +367,27 @@ class DailyEmbed(Embed):
             v = '\n'.join(':blue_square:'+l+'`'+t for (l,t) in lines)
             items.append(EmbedField(name=t, value=v))
         super().__init__(title=title, description=description, fields=items)
-        
+
+class MultiDayEmbed(Embed):
+    
+    def __init__(self, title, events):
+        wdays = ['Monday', 'Tuesday', 'Wednesday', 'Thursday',
+                 'Friday', 'Saturday', 'Sunday' ]
+        desc = ""
+        for e in events:
+            sday = e['start']
+            eday = e['end']
+            sdow = wdays[sday.weekday()]
+            edow = wdays[eday.weekday()]
+            
+            sfrmt = f'{sdow} <t:{int(sday.timestamp())}:D>'
+            efrmt = f'{edow} <t:{int(eday.timestamp())}:D>'
+            
+            desc += f":green_square: {e['title']}\n"
+            desc += 10*'\u00a0' + f'**Start time**: {sfrmt}\n'
+            desc += 10*'\u00a0' + f'**End time**: {efrmt}\n'
+        super().__init__(title=title, description=desc)
+
 class EventNotificationEmbed(Embed):
     
     def __init__(self, event, change_type):
@@ -374,9 +411,14 @@ class EventNotificationEmbed(Embed):
               name = 'Location',
               value = loc
             ))
-        st = datetime.datetime.fromisoformat(event['start']['dateTime'])
+        if 'dateTime' in event['start']:
+            st = datetime.datetime.fromisoformat(event['start']['dateTime'])
+            nd = datetime.datetime.fromisoformat(event['end']['dateTime'])
+        else:
+            #print("did not find dateTime field in envent", event['summary'], " start time")
+            st = datetime.datetime.fromisoformat(event['start']['date'])
+            nd = datetime.datetime.fromisoformat(event['end']['date'])
         fields.append(EmbedField(name='Scheduled for', value=f'<t:{int(st.timestamp())}:F>', inline=True))
-        nd = datetime.datetime.fromisoformat(event['end']['dateTime'])
         delta = str(nd-st).split('.')[0]
         fields.append(EmbedField(name='Duration:', value=delta, inline=True))
         super().__init__(title=title, description=desc, fields=fields)
