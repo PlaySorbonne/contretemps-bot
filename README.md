@@ -70,13 +70,13 @@ Access to the database is done through an instance of the Data class in [databas
     - [x] Delete
     - [ ] Modify
 - [x] Handle token expiration for the google calendar API. It is only handle on first connection for now. It needs to be checked in the `update()` method of CalendarApiLink, which needs to hold an attribute it sets when the token expires. It also needs to be checked in every EventNotifier method that makes API calls through CalendarApiLink, and it needs to put itself in a disconnected state if the token expires.
-- [ ] Handle daily events everywhere (in summaries, show them in a different embed ? 
+- [ ] Handle daily events everywhere (in summaries, show them in a different embed ? )
 - [x] Some agendas currently give delayed updates (they do not give all the events with the first API request). This can cause a message spam from the bot when a notifier is set, and also infinite messages with reccuring events. This is because of the max number of events in a single response, we need to check nextPageToken each time, and limit lookup period (1 year seems reasonable)
 - [ ] When there is a re-connection attempt after a disconnection, check if it is the same google account, otherwise ask the user if we should delete all the old notifiers and summaries
-- [ ] Handle the case where there are more than 25 channels to choose from. In the form presented to the user when creating an event notifier (called **AddWatchForm**), we use a [Select Menu](https://guide.pycord.dev/interactions/ui-components/dropdowns) to allow the user to choose the channel associated to the notifier. But the API only allows for 25 elements in a Select Menu. So we should handle the case where there are more than 25 choices (selecting a channel, selecting a calendar, and selecting a notifier when creating a summary) by splitting the choice list into parts of 23 elements, then adding a 'Prec' and 'Next' options. 
+- [x] Handle the case where there are more than 25 channels to choose from. In the form presented to the user when creating an event notifier (called **AddWatchForm**), we use a [Select Menu](https://guide.pycord.dev/interactions/ui-components/dropdowns) to allow the user to choose the channel associated to the notifier. But the API only allows for 25 elements in a Select Menu. So we should handle the case where there are more than 25 choices (selecting a channel, selecting a calendar, and selecting a notifier when creating a summary) by splitting the choice list into parts of 23 elements, then adding a 'Prec' and 'Next' options. 
     - [x] Channel choice in Event Notifier creation
     - [x] Calendar choice in Event Notifier creation
-    - [ ] Notifier choice in Event Summary creation
+    - [x] Notifier choice in Event Summary creation
 - [ ] Check date sanity when allowing the user to create an event summary (only allow future dates). This is to be done in the **MakeSummaryForm** class.
 - [ ] Make a command the force an update to all the summaries in the server (can be useful for example if there have been modified events while the bot is down)
 - [ ] Handle the case where a summary has more than 25 days to account for. Since an Embed can only have 25 Items, something must be done about this. Chronicle Bot's solution is to split the summary into multiple messages

@@ -280,7 +280,7 @@ def MakeSummaryForm(guild): #TODO handle if there is no watch (0 elements to sel
     for c in cals:
         cname = bot.get_channel(int(c['channel_id'])).name
         calname = c['watch_id']
-        formated.append(f'Channel: #{cname} ----- {calname}')
+        formated.append((c,f'Channel: #{cname} ----- {calname}'))
     today = datetime.date.today()
         
         
@@ -295,17 +295,15 @@ def MakeSummaryForm(guild): #TODO handle if there is no watch (0 elements to sel
             self.header = ""
             
         
-        @discord.ui.select(
-            placeholder = "Choose a watched calendar",
-            min_values=1,
-            max_values=1,
-            options = [ discord.SelectOption(label=formated[i], value=str(i)) for i in range(len(cals)) ], #TODO if watched cals more than 25
-            row=0
+        @paginated_selector(
+            name = "Event Notifier",
+            row = 0,
+            options = formated,
+            to_str = lambda x : x[1]
         )
-        async def select_callback_1(self, select, interaction):
-            i = select.values[0]
-            self.watched_cal = cals[int(i)]
-            select.placeholder = formated[int(i)]
+        async def select_callback_1(self, select, interaction, value):
+            select.placeholder = value[1]
+            self.watched_cal = value[0]
             await interaction.response.edit_message(view=self)
         
         @discord.ui.button(label = f"Starting on day: {today}", style=discord.ButtonStyle.primary, row=1)
