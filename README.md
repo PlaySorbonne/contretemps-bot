@@ -75,7 +75,7 @@ Access to the database is done through an instance of the Data class in [databas
 - [ ] When there is a re-connection attempt after a disconnection, check if it is the same google account, otherwise ask the user if we should delete all the old notifiers and summaries
 - [ ] Handle the case where there are more than 25 channels to choose from. In the form presented to the user when creating an event notifier (called **AddWatchForm**), we use a [Select Menu](https://guide.pycord.dev/interactions/ui-components/dropdowns) to allow the user to choose the channel associated to the notifier. But the API only allows for 25 elements in a Select Menu. So we should handle the case where there are more than 25 choices (selecting a channel, selecting a calendar, and selecting a notifier when creating a summary) by splitting the choice list into parts of 23 elements, then adding a 'Prec' and 'Next' options. 
     - [x] Channel choice in Event Notifier creation
-    - [ ] Calendar choice in Event Notifier creation
+    - [x] Calendar choice in Event Notifier creation
     - [ ] Notifier choice in Event Summary creation
 - [ ] Check date sanity when allowing the user to create an event summary (only allow future dates). This is to be done in the **MakeSummaryForm** class.
 - [ ] Make a command the force an update to all the summaries in the server (can be useful for example if there have been modified events while the bot is down)

@@ -6,25 +6,30 @@ from discord.ext import tasks, pages
 from event_notifier import EventNotifier
 from google_calendar import GoogleAuthentifier
 
-
 import datetime
 import dateutil
-
 import functools
 
-token = open('.discord_token', 'r').read()
 
 
+
+#TODO : restucture (and split) this file into multiple files
+#### until there is a claner and more logical structure for the contents ####
+#### of this file, I'll use comments like this to make it less unreadable####
+
+
+
+
+################################ BOT SETUP ####################################
 bot = discord.Bot()
 
-server_notifiers = dict()
+server_notifiers = dict() # Maps each server (using its id) to an EventNotifier
 
+# Setting up an EventNotifier for each server the bot is a member of
 @bot.event
 async def on_ready():
     async for guild in bot.fetch_guilds(limit=150):
         server_notifiers[guild.id] = EventNotifier(guild.id, guild.name, bot)
-    #e = await (await bot.get_channel(1174715386390921247).fetch_message('1174715386390921247/1177257128772259850'))
-    #print("Found the chroniclebot embed :", e)
 
 @bot.event
 async def on_guild_join(guild):
@@ -33,9 +38,12 @@ async def on_guild_join(guild):
 @bot.event
 async def on_guild_remove(guild):
     pass # do we delete the guild configuration or just keep it ?
+############################## END BOT SETUP ##################################
 
 
 
+
+###################### GENERIC/COMMON PARTS FOR COMMANDS ######################
 def access_control(lvl):
     """
     Decorator that protects a command under some access level
@@ -56,9 +64,12 @@ def access_control(lvl):
     return dec 
 
 
-#TODO : restucture (and split) this file into multiple files (maybe one module per command grouped in a package?)
-
 def ActionModal(lbl, cback, title):
+    """
+    Generic reframing of a Modal allowing to 
+    specify the action taken with the text entered
+    as a parameter in the "constructor"
+    """
     class ActionModal(discord.ui.Modal):
         def __init__(self):
             super().__init__(title=title)
@@ -69,6 +80,66 @@ def ActionModal(lbl, cback, title):
     return ActionModal()
 
 
+def paginated_selector(name, options, to_str, row, page_len=23):
+    """
+    Decorator for making a Select Component that can take more
+    than 25 options by splitting them into multiple parts  
+    """
+    def to_str2(e, i, l): # helper function
+        if i == 0 or i == l-1: return e
+        return to_str(e)
+    
+    n = (len(options)-1)//page_len + 1
+    options = [
+        [f'Goto page {i}/{n}']+options[i*page_len:(i+1)*page_len]+[f'Goto page {i+2}/{n}']
+        for i in range(n)
+    ]
+    options[0][0], options[-1][-1] = f'First page of {n}', f'Last page of {n}'
+    
+    def make_options(p_n):
+        return [
+            discord.SelectOption(
+                label=to_str2(options[p_n][i], i, len(options[p_n])),
+                value=str(i)
+            )
+            for i in range(len(options[p_n])) 
+        ]
+    
+    def decorator(f):
+        current_page = [0]
+        @discord.ui.select(
+            placeholder = f"Choose a {name}",
+            min_values=1, max_values=1,
+            options=make_options(0),
+            row=row
+        )
+        async def new_f(self, select, interaction):
+            i = int(select.values[0])
+            if i == 0:
+                if (current_page[0] == 0): # we stay on the first page
+                    await interaction.response.defer()
+                else:
+                    current_page[0] -= 1
+                    select.options = make_options(current_page[0])
+                    await interaction.response.edit_message(view=self)
+            elif i == len(options[current_page[0]])-1:
+                if (current_page[0] == n - 1):
+                    await interaction.response.defer()
+                else:
+                    current_page[0] += 1
+                    select.options = make_options(current_page[0])
+                    await interaction.response.edit_message(view=self)
+            else :
+                await f(self, select, interaction, options[current_page[0]][i])
+        return new_f
+    return decorator
+
+################### END GENERIC/COMMON PARTS FOR COMMANDS #####################
+
+
+
+
+################################ SLASH COMMANDS ################################
 class ConnectModal(discord.ui.Modal):
     def __init__(self, gid, x, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -101,8 +172,7 @@ async def connect(ctx):
 
 def AddWatchForm(guild, cals):
     gid = guild.id
-    #cals = server_notifiers[gid].get_all_calendars()
-    channels = [c for c in guild.channels if isinstance(c, discord.abc.Messageable)]
+
     class AddWatchForm(discord.ui.View):
         
         def __init__(self):
@@ -112,21 +182,20 @@ def AddWatchForm(guild, cals):
             self.upd_new = True
             self.upd_del = True
             self.upd_mod = True
+            self.cal_page = 0
             
         
-        @discord.ui.select(
-            placeholder = "Choose a calendar",
-            min_values=1,
-            max_values=1,
-            options = [ discord.SelectOption(label=e['name'], value=e['id']) for e in cals ] if cals else [],
-            row=0
+        @paginated_selector(
+            name = "calendar",
+            row = 0,
+            options = cals,
+            to_str = lambda c : c['name']
         )
-        async def select_callback_1(self, select, interaction):
-            i = int(select.values[0])
-            self.cal = cals[i]
-            select.placeholder = cals[i]['name']
+        async def select_callback_1(self, select, interaction, choice):
+            select.placeholder = choice['name']
+            self.cal = choice
             await interaction.response.edit_message(view=self)
-        
+                
         @discord.ui.select(
             placeholder = "Choose a channel",
             select_type=discord.ComponentType.channel_select,
@@ -387,7 +456,7 @@ async def list_notifiers(ctx):
     for n in acc.get_all_watches():
         title = f"Event Notifier : {n['watch_id']}"
         desc =  f"""**Calendar**: {n['calendar_name']}
-                    **Channel**: {ctx.guild.get_channel(int(n['channel_id']))}
+                    **Channel**: {ctx.guild.get_channel_or_thread(int(n['channel_id']))}
                     **Options**: """ \
               + ("new events/" if n['updates_new'] else "") \
               + ("modified events/" if n['updates_mod'] else "") \
@@ -408,12 +477,17 @@ async def list_notifiers(ctx):
         await paginator.respond(ctx.interaction, ephemeral=True)
     else:
         await ctx.respond("No notifier found.", ephemeral=True)
+############################## END SLASH COMMANDS ##############################
+
 
 #TODO : Command allowing to EDIT notifiers and summaries
 #TODO : force update all summaries of server
 #TODO : restrict to only guilds (or handle non Member user objects (no roles)
 # note to self : autocomplete for slash commands gives max 25 choices
 
-bot.run(token)
 
+################################ BOT LAUNCH ###################################
+token = open('.discord_token', 'r').read()
+bot.run(token)
+############################## END BOT LAUNCH #################################
 
