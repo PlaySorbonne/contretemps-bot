@@ -188,6 +188,13 @@ class EventNotifier:
         await self.publish_summary(summary, m=m, d=d)
 
 
+    async def update_all_summaries(self):
+        d = Data()
+        for w in d.get_all_watched_cals(self.__server_id):
+            for s in d.get_watch_summaries(self.__server_id, w['watch_id']):
+                await self.update_summary_message(s, watch=w, d=d)
+
+
     async def publish_summary(self, summary, m=None, watch=None , d=None):
         if d is None: d=Data()
         if watch is None:

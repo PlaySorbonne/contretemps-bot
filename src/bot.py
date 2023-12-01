@@ -475,6 +475,15 @@ async def list_notifiers(ctx):
         await paginator.respond(ctx.interaction, ephemeral=True)
     else:
         await ctx.respond("No notifier found.", ephemeral=True)
+
+
+
+
+@bot.slash_command(description="Force a check for some change in all summaries")
+@access_control(1)
+async def update_all_summaries(ctx):
+    await server_notifiers[ctx.guild.id].update_all_summaries()
+    await ctx.respond('Finished updating all summaries', ephemeral=True)
 ############################## END SLASH COMMANDS ##############################
 
 
