@@ -316,6 +316,10 @@ def MakeSummaryForm(guild): #TODO handle if there is no watch (0 elements to sel
         calname = c['watch_id']
         formated.append((c,f'Channel: #{cname} ----- {calname}'))
     today = datetime.date.today()
+    now = datetime.datetime.now()
+    min_date = now - datetime.timedelta(days=30)
+    max_date = now + datetime.timedelta(days=365)
+    date_message = f'Date must be after {min_date.isoformat()} and before {max_date.isoformat()}'
         
         
     class MakeSummaryForm(discord.ui.View):
@@ -345,29 +349,37 @@ def MakeSummaryForm(guild): #TODO handle if there is no watch (0 elements to sel
             async def cback(self2, interaction2):
                 when = self2.children[0].value
                 try:
-                    self.base_day = datetime.datetime.fromisoformat(when) #TODO : check date sanity
+                    bd = datetime.datetime.fromisoformat(when)
+                    if bd < min_date or bd > max_date:
+                        await interaction2.response.send_message(
+                            f'{when} is not a valid date. {date_message}',
+                            ephemeral = True
+                        )
+                        return
+                    self.base_day = bd
                     button.label = f"Starting on day: {self.base_day.isoformat()}"
                     await self.message.edit(self.message.content, view=self)
                     await interaction2.response.defer()
                 except ValueError:
                     await interaction2.response.send_message(f'"{when}" is an invalid date format.', ephemeral=True)
-            modal = ActionModal("Starting day in format YYYY-MM-DD HH:MM", cback, "Start summary time")
+            modal = ActionModal(f"Starting day in format YYYY-MM-DD HH:MM.", cback, "Start summary time")
             await interaction.response.send_modal(modal)
         
-        @discord.ui.button(label="Reset every 7...", style=discord.ButtonStyle.primary, row=2)
+        @discord.ui.button(label="Reset every 7...", style=discord.ButtonStyle.primary, row=2, custom_id='reset')
         async def select_callback_10(self, button, interaction):
             async def cback(self2, interaction2):
                 a = self2.children[0].value
                 try:
                     n = int(a)
-                    if n <= 0 : raise ValueError("Frequency must be strictly positive")
+                    if n <= 0 or (self.in_months and n>12) or n>365:
+                        raise ValueError("Frequency must be strictly positive")
                     self.duration = n
                     button.label = f'Reset every {n}...'
                     await self.message.edit(self.message.content, view=self)
                     await interaction2.response.defer()
                 except ValueError:
                     await interaction2.response.send_message(f'Bad value for frequency: "{a}"', ephemeral=True)
-            modal = ActionModal("Frequency : (a stricty positive number)", cback, "Update Frequency")
+            modal = ActionModal("Frequency : (>0 and <=365d/12m)", cback, "Update Frequency")
             await interaction.response.send_modal(modal)  
         
         @discord.ui.button(label="days", style=discord.ButtonStyle.primary, row=2)
@@ -375,9 +387,13 @@ def MakeSummaryForm(guild): #TODO handle if there is no watch (0 elements to sel
             if self.in_months == 0:
                 button.label="months"
                 self.in_months = 1
+                self.duration = 1
+                self.get_item('reset').label='Reset every 1...'
             else:
                 button.label="days"
                 self.in_months = 0
+                self.duration = 7
+                self.get_item('reset').label='Reset every 7...'
             await interactions.response.edit_message(view=self)
 
         @discord.ui.button(label="Set Header", style=discord.ButtonStyle.primary, row=3)
