@@ -134,6 +134,28 @@ def paginated_selector(name, options, to_str, row, page_len=23):
         return new_f
     return decorator
 
+
+
+class DangerForm(discord.ui.View):
+    def __init__(self, action):
+        self.action = action
+        super().__init__()
+    @discord.ui.button(
+        label='CONFIRM (BE CAREFUL PLEASE)',
+        style=discord.ButtonStyle.danger
+    )
+    async def button_callback(self, button, interaction):
+        async def cback(self2, interaction2):
+            if self2.children[0].value == 'YES I AM SURE':
+                await self.action()
+                await interaction2.response.send_message("Succeeded.", ephemeral=True)
+                await self.message.delete()
+            else:
+                await interaction2.response.send_message("Bad confirmation", ephemeral=True)
+                await self.message.delete()
+        modal = ActionModal('DANGER', cback, "WRITE 'YES I AM SURE' TO CONFIRM")
+        await interaction.response.send_modal(modal)
+
 ################### END GENERIC/COMMON PARTS FOR COMMANDS #####################
 
 
@@ -151,8 +173,14 @@ class ConnectModal(discord.ui.Modal):
     
     async def callback(self, interaction):
         creds = self.__x.get_credentials(self.children[0].value)
-        mail = server_notifiers[self.gid].connect(creds)
-        await interaction.response.send_message(f"Connected succesfully as {mail}", ephemeral=True)
+        if creds is None :
+            await interaction.response.send_message("The given code is bad.", ephemeral=True)
+            return
+        success, info = server_notifiers[self.gid].connect(creds)
+        if success: 
+            await interaction.response.send_message(f"Connected succesfully as {info}", ephemeral=True)
+        else:
+            await interaction.response.send_message(f'Connection failed : {info}', ephemeral=True)
 
 def ConnectView(guildid, x):
     class ConnectView(discord.ui.View):
@@ -166,7 +194,13 @@ def ConnectView(guildid, x):
 @access_control(2)
 async def connect(ctx):
     x = GoogleAuthentifier()
-    await ctx.respond("Get the code at this url then click the button. " + x.get_url(), view=ConnectView(ctx.guild.id, x), ephemeral=True)
+    message = "Get the code at this url then click the button. " + x.get_url()
+    email = server_notifiers[ctx.guild.id].get_email()
+    if email is not None :
+        message+=f'\n**Warning : you were connected with the mail {email}.'
+        message+='You either need to connect using the same account,'
+        message+=' or do delete all the previous things by doing /purge before.**'
+    await ctx.respond(content=message, view=ConnectView(ctx.guild.id, x), ephemeral=True)
 
 
 
@@ -318,7 +352,7 @@ def MakeSummaryForm(guild): #TODO handle if there is no watch (0 elements to sel
                 except ValueError:
                     await interaction2.response.send_message(f'"{when}" is an invalid date format.', ephemeral=True)
             modal = ActionModal("Starting day in format YYYY-MM-DD HH:MM", cback, "Start summary time")
-            await interaction.response.send_modal(modal) #TODO TODO : command to make the bot tell next update for summary
+            await interaction.response.send_modal(modal)
         
         @discord.ui.button(label="Reset every 7...", style=discord.ButtonStyle.primary, row=2)
         async def select_callback_10(self, button, interaction):
@@ -484,6 +518,19 @@ async def list_notifiers(ctx):
 async def update_all_summaries(ctx):
     await server_notifiers[ctx.guild.id].update_all_summaries()
     await ctx.respond('Finished updating all summaries', ephemeral=True)
+
+
+@bot.slash_command(description="[DANGEROUS] Delete everything and dissociate google account")
+@access_control(2)
+async def purge(ctx):
+    async def action():
+        await server_notifiers[ctx.guild.id].purge()
+    await ctx.respond(
+        "# WARNING : THIS WILL DELETE ALL CONFIGS.",
+        view=DangerForm(action),
+        ephemeral = True
+    )
+    
 ############################## END SLASH COMMANDS ##############################
 
 

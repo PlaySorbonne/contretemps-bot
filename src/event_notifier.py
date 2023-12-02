@@ -21,6 +21,8 @@ class EventNotifier:
         self.__server_id = server_id
         self.__name = server_name
         state = Data().check_server_connexion(server_id)
+        self.__link, self.connected = None, False
+        self.__email = state['gmail']
         self.connect(state['gtoken'])
         self.check_summaries.start()
         print("Succesfully configured", self.__name)
@@ -29,20 +31,32 @@ class EventNotifier:
     def connect(self, tok):
         watched_cals = Data().get_all_watched_cals(self.__server_id)
         cals = [c['calendar_id'] for c in watched_cals]
-        #print("CALS:", cals)
         if (tok):
             try:
-                self.__link = CalendarApiLink(tok, cals, self.update)
-                Data().set_server_connexion(self.__server_id, tok, self.__link.get_email())
-                # TODO : check for email (account) change, which would dismiss all old watched_calendars
-                self.connected = True
-                return self.__link.get_email()
+                new_link = CalendarApiLink(tok, [], self.update)
+                new_mail = new_link.get_email()
+                if self.__email is None or self.__email == new_mail:
+                    self.__link, self.connected = new_link, True
+                    self.__email = new_mail
+                    Data().set_server_connexion(self.__server_id, tok, self.__email)
+                    for cal in cals: self.__link.watch_calendar(cal)
+                    return True, self.__email
+                return False, f'New account ({new_mail}) different from old ({self.__email})'
             except CalendarApiLink.BadCredentials:
-                self.__link = None
-                # TODO : put NULL as tok in the db
+                Data().set_server_connexion(self.__server_id, None, self.__email)
+                return False, "bad credentials for connection."
         else:
-            self.__link = None
-        self.connected = self.__link is not None
+            return False, 'bad connection code'
+    
+    async def purge(self):
+        d = Data()
+        for w in d.get_all_watched_cals(self.__server_id):
+            await self.delete_watch(w['watch_id'], d=d)
+        d.set_server_connexion(self.__server_id, None, None)
+        self.__email, self.__link, self.connected = None, None, False
+    
+    def get_email(self):
+        return self.__email
     
     async def add_watch(self, channel_id, cal, new, dele, mod, name):
         new_col = {
@@ -131,8 +145,8 @@ class EventNotifier:
                     await self.publish_summary(s, d=d)
                     
     
-    async def delete_watch(self, watch_id):
-        d = Data()
+    async def delete_watch(self, watch_id, d=None):
+        if d is None : d = Data()
         w = d.get_watch(self.__server_id, watch_id)
         if w is None:
             return False
