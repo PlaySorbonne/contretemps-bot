@@ -229,8 +229,8 @@ class CalendarApiLink:
     
     @might_refresh_error(BadCredentials)
     def get_period_events(self, calendarId, start, end): 
-        start = start.isoformat()+'Z'
-        end = end.isoformat()+'Z'
+        start = start.isoformat().split('+')[0]+'Z'
+        end = end.isoformat().split('+')[0]+'Z'
         res = (
             self.__c.events().list(
                 calendarId=calendarId,

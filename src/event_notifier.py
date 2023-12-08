@@ -25,10 +25,13 @@ from discord.errors import NotFound
 from google_calendar import CalendarApiLink
 
 import datetime
+from datetime import timezone
 
 from dateutil.relativedelta import relativedelta
 from dateutil.utils import within_delta
 
+
+UTC = timezone.utc
 
 
 class EventNotifier:
@@ -149,13 +152,18 @@ class EventNotifier:
         for w in d.get_all_watched_cals(self.__server_id):
             for s in d.get_watch_summaries(self.__server_id, w['watch_id']):
                 # check if it is time to update the summary base date
-                base_date = datetime.datetime.fromisoformat(s['base_date'])
+                base_date = EventNotifier.iso_to_utcdt(s['base_date'])
                 delta = EventNotifier.parse_delta(s['frequency'])
-                now = datetime.datetime.now()
-                if (now > base_date+delta): 
+                now = datetime.datetime.now(tz=UTC)
+                m = await self.fetch_message_opt(w['channel_id'], s['message_id'])
+                bad_message = now > base_date + delta
+                if (bad_message): 
                     print("Found finished summary")
                     while (now > base_date+delta):
                         base_date += delta
+                bad_message = bad_message or m is None or\
+                              m.created_at < base_date and base_date <= now
+                if bad_message:
                     d.modify_summary(s, {'base_date':base_date.isoformat()})
                     s = d.get_summary(self.__server_id, s['watch_id'], s['summary_id'])
                     await self.delete_summary_message(s, d=d)
@@ -386,6 +394,11 @@ class EventNotifier:
             self.connected = False
             # TODO is it helpful/necessary to nullify the token in db here?
             return None
+    
+    @staticmethod
+    def iso_to_utcdt(d):
+        d = datetime.datetime.fromisoformat(d)
+        return d.replace(tzinfo=UTC)
 
 class DailyEmbed(Embed):
     
