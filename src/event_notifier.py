@@ -326,30 +326,39 @@ class EventNotifier:
         return events
     
     def make_daily_embed(self, title, description, events):
-        l, mday_l = [],[]
+        l = {}
         for e in events: # TODO : Handle(or just ignore) multi-day events
             regular = 'dateTime' in e['start']
             date_field = 'dateTime' if regular else 'date'
             day = datetime.datetime.fromisoformat(e['start'][date_field]).date().isoformat()
             start = datetime.datetime.fromisoformat(e['start'][date_field])
             end = datetime.datetime.fromisoformat(e['end'][date_field])
-            value = {
-                'title': e['summary'],
-                'start': start,
-                'end': end,
-            }
-            if regular:
-                if not l or  day > l[-1][0]:
-                    l.append((day, []))
-                l[-1][1].append(value)
+            if regular :
+                self._add_embed_event(e, start, end, day, regular, l)
             else :
-                mday_l.append(value)
-        reg_embed = DailyEmbed(title, description, l)
-        if mday_l:
-            multi_embed = MultiDayEmbed("Events that happen across multiple days", mday_l)
-            return [multi_embed, reg_embed]
-        return [reg_embed]
+                days, k = (end-start+datetime.timedelta(days=1)).days, 1
+                while start <= end:
+                    self._add_embed_event(e, start, start, start.isoformat(), regular, l, k, days)
+                    start += datetime.timedelta(days=1)
+                    k += 1
+        l = [(x, l[x]) for x in l]
+        l.sort(key=lambda u : u[0])
+        embed = DailyEmbed(title, description, l)
+        return [embed]
     
+    def _add_embed_event(self, e, start, end, day, regular, l, k=None, n=None):
+        value = {
+            'title': e['summary'],
+            'start': start,
+            'end': end,
+            'color' : ':blue_square:' if regular else ':red_square:',
+            'regular': regular,
+            'k' : k,
+            'n' : n 
+        }
+        if day in l : l[day].append(value)
+        else: l[day]= [value]
+        
     
     def set_access(self, uid, mention, l):
         if (l == 0):
@@ -407,15 +416,20 @@ class DailyEmbed(Embed):
         for (day, events) in days:
             t = f"**<t:{int(datetime.datetime.fromisoformat(day).timestamp())}:F>**"
             
-            lines = (
-              (
-                f"`{e['title']}",
-                f" <t:{int(e['start'].timestamp())}:t> - <t:{int(e['end'].timestamp())}:t>"
-              )
-              for e in events
-            )
-            lines = ( ((l[:47]+'...' if len(l)>50 else l+'\u00a0'*(50-len(l))),t) for (l,t) in lines)
-            v = '\n'.join(':blue_square:'+l+'`'+t for (l,t) in lines)
+            def line_of_event(e):
+                if e['regular']:
+                    return (
+                        f"`{e['title']}", 
+                        f"<t:{int(e['start'].timestamp())}:t> - <t:{int(e['end'].timestamp())}:t>"
+                    )
+                else:
+                    return (
+                        f" `(Day {e['k']}/{e['n']}) {e['title']}",
+                        " All day"
+                    )
+            lines = (line_of_event(e) for e in events)
+            lines = ( ((l[:37]+'...' if len(l)>40 else l+'\u00a0'*(40-len(l))),t) for (l,t) in lines)
+            v = '\n'.join(events[i]['color']+l+'`'+t for i,(l,t) in enumerate(lines))
             items.append(EmbedField(name=t, value=v))
         super().__init__(title=title, description=description, fields=items)
 
