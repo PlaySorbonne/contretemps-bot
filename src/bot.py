@@ -549,8 +549,8 @@ async def list_notifiers(ctx):
 @bot.slash_command(description="Force a check for some change in all summaries")
 @access_control(1)
 async def update_all_summaries(ctx):
+    await ctx.respond('Updating all summaries...', ephemeral=True)
     await server_notifiers[ctx.guild.id].update_all_summaries()
-    await ctx.respond('Finished updating all summaries', ephemeral=True)
 
 
 @bot.slash_command(description="[DANGEROUS] Delete everything and dissociate google account")

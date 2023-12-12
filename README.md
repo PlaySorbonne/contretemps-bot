@@ -79,7 +79,7 @@ Access to the database is done through an instance of the Data class in [databas
     - [x] Notifier choice in Event Summary creation
 - [x] Check date sanity when allowing the user to create an event summary (only allow future dates). This is to be done in the **MakeSummaryForm** class.
 - [x] Make a command the force an update to all the summaries in the server (can be useful for example if there have been modified events while the bot is down)
-- [ ] Handle the case where a summary has more than 25 days to account for. Since an Embed can only have 25 Items, something must be done about this. Chronicle Bot's solution is to split the summary into multiple messages
+- [x] Handle the case where a summary has more than 25 days to account for. Since an Embed can only have 25 Items, something must be done about this. Chronicle Bot's solution is to split the summary into multiple messages
 - [ ] Remember notification messages sent by the notifier and delete them if a new one is sent to avoid spam (and make this an option in the notifier creation form)
 
 

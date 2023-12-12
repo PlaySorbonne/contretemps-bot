@@ -25,12 +25,14 @@ from discord.errors import NotFound
 from google_calendar import CalendarApiLink
 
 import datetime
-from datetime import timezone
+from datetime import timezone, timedelta
 
 from dateutil.relativedelta import relativedelta
 from dateutil.utils import within_delta
 
 
+#TODO : handle timezones correctly everywhere
+#TODO : now it is hardcoded to just work with UTC+1
 UTC = timezone.utc
 
 
@@ -154,15 +156,15 @@ class EventNotifier:
                 # check if it is time to update the summary base date
                 base_date = EventNotifier.iso_to_utcdt(s['base_date'])
                 delta = EventNotifier.parse_delta(s['frequency'])
-                now = datetime.datetime.now(tz=UTC)
-                m = await self.fetch_message_opt(w['channel_id'], s['message_id'])
+                now = datetime.datetime.now().replace(tzinfo=UTC)
+                m = await self.fetch_message_list_opt(w['channel_id'], s['message_id'])
                 bad_message = now > base_date + delta
                 if (bad_message): 
                     print("Found finished summary")
                     while (now > base_date+delta):
                         base_date += delta
                 bad_message = bad_message or m is None or\
-                              m.created_at < base_date and base_date <= now
+                              (m[0].created_at+timedelta(hours=1)) < base_date and base_date <= now
                 if bad_message:
                     d.modify_summary(s, {'base_date':base_date.isoformat()})
                     s = d.get_summary(self.__server_id, s['watch_id'], s['summary_id'])
@@ -202,12 +204,13 @@ class EventNotifier:
         if watch is None:
             watch = d.get_watch(self.__server_id, summary['watch_id'])
         if summary['message_id'] is not None:
-             try:
-                m = await self.__b.get_channel(int(watch['channel_id'])).fetch_message(int(summary['message_id']))
-                if (m.author == self.__b.user): #should be always true but extra check since we're deleting a message
-                    await m.delete()
-             except NotFound: #message does not exist anymore, nothing to do
-                print("Tried to delete message from server, but it did not exist :((((")
+             for mid in summary['message_id'].split(';'):
+                 try:
+                    m = (await self.__b.get_channel(int(watch['channel_id'])).fetch_message(int(mid)))
+                    if (m.author == self.__b.user): #should be always true but extra check since we're deleting a message
+                        await m.delete()
+                 except NotFound: #message does not exist anymore, nothing to do
+                    print("Tried to delete message from server, but it did not exist :((((")
         if (upd_db):
             d.modify_summary_message(summary, None)
     
@@ -219,12 +222,11 @@ class EventNotifier:
         new_evs = self.get_summary_events(summary)
         if (new_evs is None):
             await self.__b.get_channel(int(watch['channel_id'])).send(
-              f'Warning : I am diconnected from Google, summary {summary["summary_id"]} not updated'
+              f'Warning : I am disconnected from Google, summary {summary["summary_id"]} not updated'
             )
             return
-        new_embd = self.make_daily_embed("", "", new_evs)
-        m = await self.fetch_message_opt(watch['channel_id'], summary['message_id'])
-        await self.publish_summary(summary, m=m, d=d)
+        m = await self.fetch_message_list_opt(watch['channel_id'], summary['message_id'])
+        await self.publish_summary(summary, m=m, d=d, new_evs = new_evs)
 
 
     async def update_all_summaries(self):
@@ -234,24 +236,31 @@ class EventNotifier:
                 await self.update_summary_message(s, watch=w, d=d)
 
 
-    async def publish_summary(self, summary, m=None, watch=None , d=None):
+    async def publish_summary(self, summary, m=None, watch=None , d=None, new_evs=None):
         if d is None: d=Data()
         if watch is None:
             watch = d.get_watch(self.__server_id, summary['watch_id'])
-        new_evs = self.get_summary_events(summary)
-        if (new_evs is None):
-            await self.__b.get_channel(int(watch['channel_id'])).send(
-              f'Warning : I am diconnected from Google, summary {summary["summary_id"]} cannot be published'
-            )
-            return
+        if new_evs is None:
+            new_evs = self.get_summary_events(summary)
+            if (new_evs is None):
+                await self.__b.get_channel(int(watch['channel_id'])).send(
+                    f'Warning : I am disconnected from Google, summary {summary["summary_id"]} cannot be published'
+                )
+                return
         content = '# ' + summary['summary_id'] + '\n' + summary['header']
         new_embd = self.make_daily_embed("", "", new_evs)
-        if m is None :
-            m = await self.__b.get_channel(int(watch['channel_id'])).send(content=content, embeds=new_embd)
-            d.modify_summary(summary, {'message_id' : str(m.id) })
+        if m is None or len(new_embd) > len(m):
+            if m : await self.delete_summary_message(summary, watch, upd_db=False, d=d)
+            ms = [await self.__b.get_channel(int(watch['channel_id'])).send(content=content, embed=new_embd[0])]
+            for embed in new_embd[1:]:
+                ms.append(await self.__b.get_channel(int(watch['channel_id'])).send(content='', embed=embed))
+            d.modify_summary(summary, {'message_id' : ';'.join(str(m.id) for m in ms) })
         else:
-            await m.edit(content=content, embeds=new_embd)
-        
+            for i in range(len(new_embd)):
+                await m[i].edit(content=('' if i>0 else content), embed=new_embd[i])
+            for i in range(len(new_embd), len(m)):
+                if (m[i].embeds):
+                    await m[i].edit(content=('.' if i else content),embeds=[])
     
     def get_all_calendars(self):
         """
@@ -289,7 +298,7 @@ class EventNotifier:
         events = self.get_summary_events(new_col)
         if (events is None):
             await self.__b.get_channel(int(watch_cal['channel_id'])).send(
-              f'Warning : I am diconnected from Google, summary {name} not published'
+              f'Warning : I am disconnected from Google, summary {name} not published'
             )
             # We remember the summary for future publication
             Data().insert_cols_in_table('event_summary', [new_col])
@@ -330,21 +339,47 @@ class EventNotifier:
         for e in events: # TODO : Handle(or just ignore) multi-day events
             regular = 'dateTime' in e['start']
             date_field = 'dateTime' if regular else 'date'
-            day = datetime.datetime.fromisoformat(e['start'][date_field]).date().isoformat()
-            start = datetime.datetime.fromisoformat(e['start'][date_field])
-            end = datetime.datetime.fromisoformat(e['end'][date_field])
+            day = datetime.datetime.fromisoformat(e['start'][date_field])
+            day = day.replace(hour=0, minute=0, second=0, microsecond=0, tzinfo=UTC)
+            start = datetime.datetime.fromisoformat(e['start'][date_field]).replace(tzinfo=UTC)
+            end = datetime.datetime.fromisoformat(e['end'][date_field]).replace(tzinfo=UTC)
             if regular :
                 self._add_embed_event(e, start, end, day, regular, l)
             else :
                 days, k = (end-start+datetime.timedelta(days=1)).days, 1
                 while start <= end:
-                    self._add_embed_event(e, start, start, start.isoformat(), regular, l, k, days)
+                    self._add_embed_event(e, start, start, start, regular, l, k, days)
                     start += datetime.timedelta(days=1)
                     k += 1
+        x = self._make_split_daily_embeds(title, description, l)
+        return x
+    
+    def _make_split_daily_embeds(self, title, description, l):
         l = [(x, l[x]) for x in l]
         l.sort(key=lambda u : u[0])
-        embed = DailyEmbed(title, description, l)
-        return [embed]
+        embeds, sofar, nevs, ndays, afu = [], [], 0, 0, False
+        X = DailyEmbed
+        def flush_embed(fu=False):
+            nonlocal sofar, nevs, ndays, afu
+            t, d = (title,description) if not embeds else (" ", "dummy")
+            embeds.append(DailyEmbed(title, description, sofar, followup=afu))
+            sofar, nevs, ndays, afu = [], 0, 0, fu
+        for day, events in l:
+            # invariant here : nevs < X.MAX_UNIT_EVENTS, ndays < X.MAX_DAYS
+            sofar.append((day, []))
+            for i, e in enumerate(events):
+                sofar[-1][1].append(e)
+                nevs+=1
+                if nevs == X.MAX_UNIT_EVENTS:
+                    more_to_go = i+1 < len(events)
+                    flush_embed(more_to_go)
+                    if more_to_go: sofar.append((day, []))
+            ndays += 1
+            if (ndays == X.MAX_DAYS):
+                flush_embed(False)
+        if sofar : flush_embed(False)
+        if not embeds : embeds = [DailyEmbed(title, description, [])]
+        return embeds
     
     def _add_embed_event(self, e, start, end, day, regular, l, k=None, n=None):
         value = {
@@ -359,6 +394,19 @@ class EventNotifier:
         if day in l : l[day].append(value)
         else: l[day]= [value]
         
+    
+    async def fetch_message_list_opt(self, channel_id, msg_ids):
+        l = [await self.fetch_message_opt(channel_id, msg_id) for msg_id in msg_ids.split(';')]
+        if None in l:
+            await self.purge_opt_message_list(l)
+            return None
+        return l
+    
+    async def purge_opt_message_list(self, l):
+        for m in l:
+            if m is not None:
+                try: await m.delete()
+                except Exception : pass
     
     def set_access(self, uid, mention, l):
         if (l == 0):
@@ -411,10 +459,21 @@ class EventNotifier:
 
 class DailyEmbed(Embed):
     
-    def __init__(self, title, description, days):
+    # To avoid counting the size of the embed case by case, we estimate a
+    # large upper bound for the embed elements to know how many events we
+    # can safely fit in one embed
+    SINGLE_EVENT_LEN = 100 # Upper bound: size of an event line
+    DAY_HEADER_LEN = 50 # Upper bound: size of daily header (just a timestamp)
+    DESCRIPTION_LEN = 500 # Upper bound for embed description
+    TITLE_LEN = 50 # Exact size for the title of an event
+    MAX_DAYS = 25 # No more than 25 fields
+    # The maximum number of single events that can appear in one embed
+    MAX_UNIT_EVENTS = (6000 - DESCRIPTION_LEN - MAX_DAYS*DAY_HEADER_LEN)//SINGLE_EVENT_LEN
+    
+    def __init__(self, title, description, days, followup=False):
         items = [] #TODO : handle more than 25 items (pagination ?)
         for (day, events) in days:
-            t = f"**<t:{int(datetime.datetime.fromisoformat(day).timestamp())}:F>**"
+            t = f"**<t:{int(day.timestamp())}:F>**"
             
             def line_of_event(e):
                 if e['regular']:
@@ -428,30 +487,20 @@ class DailyEmbed(Embed):
                         " All day"
                     )
             lines = (line_of_event(e) for e in events)
-            lines = ( ((l[:37]+'...' if len(l)>40 else l+'\u00a0'*(40-len(l))),t) for (l,t) in lines)
+            lines = (
+             (
+              (
+               l[:self.TITLE_LEN-3]+'...' if len(l)>self.TITLE_LEN 
+                 else l+'\u00a0'*(self.TITLE_LEN-len(l))),
+               t
+              ) 
+             for (l,t) in lines
+            )
             v = '\n'.join(events[i]['color']+l+'`'+t for i,(l,t) in enumerate(lines))
             items.append(EmbedField(name=t, value=v))
+        if followup and items : items[0].name = '' # The day has been announced in preceding embed
         super().__init__(title=title, description=description, fields=items)
 
-class MultiDayEmbed(Embed):
-    
-    def __init__(self, title, events):
-        wdays = ['Monday', 'Tuesday', 'Wednesday', 'Thursday',
-                 'Friday', 'Saturday', 'Sunday' ]
-        desc = ""
-        for e in events:
-            sday = e['start']
-            eday = e['end']
-            sdow = wdays[sday.weekday()]
-            edow = wdays[eday.weekday()]
-            
-            sfrmt = f'{sdow} <t:{int(sday.timestamp())}:D>'
-            efrmt = f'{edow} <t:{int(eday.timestamp())}:D>'
-            
-            desc += f":green_square: {e['title']}\n"
-            desc += 10*'\u00a0' + f'**Start time**: {sfrmt}\n'
-            desc += 10*'\u00a0' + f'**End time**: {efrmt}\n'
-        super().__init__(title=title, description=desc)
 
 class EventNotificationEmbed(Embed):
     

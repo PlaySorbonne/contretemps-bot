@@ -265,7 +265,7 @@ class CalendarApiLink:
                     singleEvents = True, 
                     showDeleted = True,
                     pageToken = resp['nextPageToken']
-                )
+                ).execute()
                 newevnts += resp.get('items')
             self.__watched_cals[cal]['tok'] = resp['nextSyncToken']
             evlist = self.__watched_cals[cal]['events']
