@@ -1,0 +1,7 @@
+This is the privacy policy for the ContretempsBot discord bot. It concerns the main instance of the bot (identified by "ContretempsBot#0893" on discord.com), and any other instance that uses the code in this repository without any modification and refers to this file when doing the command '/privacy-policy'.
+
+1. This bot stores in its database the email adress and access tokens to the google account to which the user has connected using the command '/connect'. This bot may also store informations about the events in any Google Calendar that the connected account has access to. 
+
+2. All the user data described in 1. is instantly deleted if the user uses the command '/disconnect' or if the bot is excluded from the discord server.
+
+3. No usage is done with the data described in 1. other than the use cases described in each bot command. In particular, no data is communicated to third-parties, and every usage of the data exclusively results in a discord message published by the bot in the discord server to which the google account was associated by the user, or as a private discord message directed at a member of the discord server.

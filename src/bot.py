@@ -563,7 +563,14 @@ async def purge(ctx):
         view=DangerForm(action),
         ephemeral = True
     )
-    
+
+@bot.slash_command(description="Privacy policy")
+async def privacy_policy(ctx):
+    await ctx.respond(
+      "Privacy policy : https://github.com/PlaySorbonne/contretemps-bot/blob/main/privacy-policy",
+      ephemeral = True
+    )
+ 
 ############################## END SLASH COMMANDS ##############################
 
 
