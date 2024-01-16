@@ -208,7 +208,7 @@ class EventNotifier:
                  try:
                     ch = self.__b.get_channel(int(watch['channel_id']))
                     if ch is not None:
-                        m = (await .fetch_message(int(mid)))
+                        m = (await ch.fetch_message(int(mid)))
                         if (m.author == self.__b.user): #should be always true but extra check since we're deleting a message
                             await m.delete()
                     else:
