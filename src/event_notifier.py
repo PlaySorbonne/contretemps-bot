@@ -206,9 +206,13 @@ class EventNotifier:
         if summary['message_id'] is not None:
              for mid in summary['message_id'].split(';'):
                  try:
-                    m = (await self.__b.get_channel(int(watch['channel_id'])).fetch_message(int(mid)))
-                    if (m.author == self.__b.user): #should be always true but extra check since we're deleting a message
-                        await m.delete()
+                    ch = self.__b.get_channel(int(watch['channel_id']))
+                    if ch is not None:
+                        m = (await .fetch_message(int(mid)))
+                        if (m.author == self.__b.user): #should be always true but extra check since we're deleting a message
+                            await m.delete()
+                    else:
+                        print(f"Did not find channel {watch['channel_id']}. (watch={watch['watch_id']})")
                  except NotFound: #message does not exist anymore, nothing to do
                     print("Tried to delete message from server, but it did not exist :((((")
         if (upd_db):
