@@ -48,15 +48,6 @@ CREATE TABLE watched_calendar (
     PRIMARY KEY (server_id, watch_id)
 );
 
-CREATE TABLE message (
-    server_id CHAR(20),
-    message_id CHAR(20),
-    watch_id VARCHAR(30),
-    type CHAR(20),
-    subtype CHAR(20),
-    FOREIGN KEY(server_id,watch_id) REFERENCES watched_calendar(server_id, watch_id),
-    PRIMARY KEY(message_id)
-);
 
 CREATE TABLE event_summary(
     server_id CHAR(20),
