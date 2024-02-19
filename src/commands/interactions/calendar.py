@@ -22,163 +22,16 @@ from discord.ext import tasks, pages
 
 from event_notifier import EventNotifier
 from google_calendar import GoogleAuthentifier
+from bot import server_notifiers, bot
 
 import datetime
 import dateutil
 import functools
 
 
+from .common import ActionModal, paginated_selector, DangerForm
 
-
-#TODO : restucture (and split) this file into multiple files
-#### until there is a claner and more logical structure for the contents ####
-#### of this file, I'll use comments like this to make it less unreadable####
-
-
-
-
-################################ BOT SETUP ####################################
-bot = discord.Bot()
-
-server_notifiers = dict() # Maps each server (using its id) to an EventNotifier
-
-# Setting up an EventNotifier for each server the bot is a member of
-@bot.event
-async def on_ready():
-    async for guild in bot.fetch_guilds(limit=150):
-        server_notifiers[guild.id] = EventNotifier(guild.id, guild.name, bot)
-
-@bot.event
-async def on_guild_join(guild):
-    server_notifiers[guild.id] = EventNotifier(guild.id, guild.name, bot)
-
-@bot.event
-async def on_guild_remove(guild):
-    pass # do we delete the guild configuration or just keep it ?
-############################## END BOT SETUP ##################################
-
-
-
-
-###################### GENERIC/COMMON PARTS FOR COMMANDS ######################
-def access_control(lvl):
-    """
-    Decorator that protects a command under some access level
-    Levels range from 0 to 2:
-      - 0 for a command needing no privilege
-      - 1 for commands setting up and configuring the notifier
-      - 2 for handling access levels of other members
-    """
-    def dec(f):
-        @functools.wraps(f)
-        async def new_f(ctx: discord.ApplicationContext, *args, **kwargs):
-            l = server_notifiers[ctx.guild.id].get_access_level(ctx.author)
-            if ctx.author == ctx.guild.owner or l >= lvl :
-                await f(ctx, *args, **kwargs)
-            else:
-                await ctx.respond(f"This command requires an an access level of {lvl}, but you have {l}.", ephemeral=True)
-        return new_f
-    return dec 
-
-
-def ActionModal(lbl, cback, title):
-    """
-    Generic reframing of a Modal allowing to 
-    specify the action taken with the text entered
-    as a parameter in the "constructor"
-    """
-    class ActionModal(discord.ui.Modal):
-        def __init__(self):
-            super().__init__(title=title)
-            
-            self.add_item(discord.ui.InputText(label=lbl, style=discord.InputTextStyle.long))
-        
-        callback = cback
-    return ActionModal()
-
-
-def paginated_selector(name, options, to_str, row, page_len=23):
-    """
-    Decorator for making a Select Component that can take more
-    than 25 options by splitting them into multiple parts  
-    """
-    def to_str2(e, i, l): # helper function
-        if i == 0 or i == l-1: return e
-        return to_str(e)
-    
-    n = (len(options)-1)//page_len + 1
-    options = [
-        [f'Goto page {i}/{n}']+options[i*page_len:(i+1)*page_len]+[f'Goto page {i+2}/{n}']
-        for i in range(n)
-    ]
-    options[0][0], options[-1][-1] = f'First page of {n}', f'Last page of {n}'
-    
-    def make_options(p_n):
-        return [
-            discord.SelectOption(
-                label=to_str2(options[p_n][i], i, len(options[p_n])),
-                value=str(i)
-            )
-            for i in range(len(options[p_n])) 
-        ]
-    
-    def decorator(f):
-        current_page = [0]
-        @discord.ui.select(
-            placeholder = f"Choose a {name}",
-            min_values=1, max_values=1,
-            options=make_options(0),
-            row=row
-        )
-        async def new_f(self, select, interaction):
-            i = int(select.values[0])
-            if i == 0:
-                if (current_page[0] == 0): # we stay on the first page
-                    await interaction.response.defer()
-                else:
-                    current_page[0] -= 1
-                    select.options = make_options(current_page[0])
-                    await interaction.response.edit_message(view=self)
-            elif i == len(options[current_page[0]])-1:
-                if (current_page[0] == n - 1):
-                    await interaction.response.defer()
-                else:
-                    current_page[0] += 1
-                    select.options = make_options(current_page[0])
-                    await interaction.response.edit_message(view=self)
-            else :
-                await f(self, select, interaction, options[current_page[0]][i])
-        return new_f
-    return decorator
-
-
-
-class DangerForm(discord.ui.View):
-    def __init__(self, action):
-        self.action = action
-        super().__init__()
-    @discord.ui.button(
-        label='CONFIRM (BE CAREFUL PLEASE)',
-        style=discord.ButtonStyle.danger
-    )
-    async def button_callback(self, button, interaction):
-        async def cback(self2, interaction2):
-            if self2.children[0].value == 'YES I AM SURE':
-                await self.action()
-                await interaction2.response.send_message("Succeeded.", ephemeral=True)
-                await self.message.delete()
-            else:
-                await interaction2.response.send_message("Bad confirmation", ephemeral=True)
-                await self.message.delete()
-        modal = ActionModal('DANGER', cback, "WRITE 'YES I AM SURE' TO CONFIRM")
-        await interaction.response.send_modal(modal)
-
-################### END GENERIC/COMMON PARTS FOR COMMANDS #####################
-
-
-
-
-################################ SLASH COMMANDS ################################
+################################ VIEWS ################################
 class ConnectModal(discord.ui.Modal):
     def __init__(self, gid, x, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -206,19 +59,6 @@ def ConnectView(guildid, x):
             modal = ConnectModal(guildid,x, title="Authentification code")
             await interaction.response.send_modal(modal)
     return ConnectView()
-
-@bot.slash_command(description="Connect to Google Agenda.")
-@access_control(2)
-async def connect(ctx):
-    x = GoogleAuthentifier()
-    message = "Get the code at this url then click the button. " + x.get_url()
-    email = server_notifiers[ctx.guild.id].get_email()
-    if email is not None :
-        message+=f'\n**Warning : you were connected with the mail {email}.'
-        message+='You either need to connect using the same account,'
-        message+=' or do delete all the previous things by doing /purge before.**'
-    await ctx.respond(content=message, view=ConnectView(ctx.guild.id, x), ephemeral=True)
-
 
 
 def AddWatchForm(guild, cals):
@@ -310,17 +150,6 @@ def AddWatchForm(guild, cals):
             
            
     return AddWatchForm()
-
-@bot.slash_command(description="Add a new calendar watch.")
-@access_control(2)
-async def add_new_event_notifier(ctx):
-    cals = server_notifiers[ctx.guild.id].get_all_calendars()
-    if (server_notifiers[ctx.guild.id].connected):
-        await ctx.respond("Adding new watch...", view=AddWatchForm(ctx.guild, cals), ephemeral=True)
-    else:
-        await ctx.respond("You are not connected to GoogleAgenda, do /connect", ephemeral=True)
-
-
 
 
 #TODO: option for extended summary form (showing location/description of events ?)
@@ -441,147 +270,4 @@ def MakeSummaryForm(guild): #TODO handle if there is no watch (0 elements to sel
             
            
     return MakeSummaryForm()
-
-
-@bot.slash_command(description="Show a summary of watched events.")
-@access_control(1)
-async def make_summary(ctx):
-    if (server_notifiers[ctx.guild.id].connected):
-        await ctx.respond("", view=MakeSummaryForm(ctx.guild), ephemeral=True)
-    else:
-        await ctx.respond("You are not connected to GoogleAgenda, do /connect", ephemeral=True)
-
-
-
-@bot.slash_command(description="0 for no access, 1 for editings notifiers, 2 for managing access")
-@access_control(2)
-async def set_access(
-    ctx,
-    who : discord.Option(discord.SlashCommandOptionType.mentionable),
-    level : discord.Option(int)
-):
-    if level < 0 or level > 2:
-        await ctx.respond(f'{level} is not a valid level. 0, 1 and 2 are the only valid ones.', ephemeral=True)
-    else:
-        server_notifiers[ctx.guild.id].set_access(who.id, who.mention, level)
-        await ctx.respond(f'Set up access level {level} for {who.mention}', ephemeral=True)
-
-@bot.slash_command(description="Show all the access rules")
-@access_control(2)
-async def list_access(ctx):
-    lvls = server_notifiers[ctx.guild.id].list_access_levels()
-    emoji = { 1 : ':green_square:', 2 : ':red_square:' }
-    ld = { 1 : 'editing notifiers (1)', 2 : 'all rights (2)' }
-    desc = '\n'.join(
-      f'{emoji[u["access_level"]]} {u["mention"]} :  {ld[u["access_level"]]}'
-      for u in lvls
-    )
-    title = "Access levels"
-    await ctx.respond("", embed=discord.Embed(title=title, description=desc), ephemeral=True)
-
-
-
-
-async def get_notifier_names(ctx):
-    return server_notifiers[ctx.interaction.guild.id].get_watches_names()
-async def get_summary_names(ctx):
-    watch_id = ctx.options['notifier']
-    return server_notifiers[ctx.interaction.guild.id].get_summaries_names(watch_id)
-
-@bot.slash_command(description="Delete an Event Summary")
-@access_control(1)
-async def delete_summary(
-    ctx,
-    notifier : discord.Option(str, autocomplete=discord.utils.basic_autocomplete(get_notifier_names)),
-    summary : discord.Option(str, autocomplete=discord.utils.basic_autocomplete(get_summary_names))
-):
-    if await server_notifiers[ctx.guild.id].delete_summary(notifier, summary):
-        await ctx.respond(f"Succesfully deleted the summary {summary}", ephemeral=True)
-    else:
-        await ctx.respond(f"No such summary exists.", ephemeral=True)
-
-@bot.slash_command(description="Delete an Event Notifier")
-@access_control(1)
-async def delete_notifier(
-    ctx, 
-    notifier : discord.Option(str, autocomplete=discord.utils.basic_autocomplete(get_notifier_names))
-):
-    if await server_notifiers[ctx.guild.id].delete_watch(notifier):
-        await ctx.respond(f"Succesfully deleted notifier {notifier} and all its summaries", ephemeral=True)
-    else:
-        await ctx.respond(f"No such notifier", ephemeral=True)
-
-
-@bot.slash_command(description="List all notifiers' details")
-@access_control(1)
-async def list_notifiers(ctx):
-    acc = server_notifiers[ctx.guild.id]
-    desc = ""
-    embeds = []
-    for n in acc.get_all_watches():
-        title = f"Event Notifier : {n['watch_id']}"
-        desc =  f"""**Calendar**: {n['calendar_name']}
-                    **Channel**: {ctx.guild.get_channel_or_thread(int(n['channel_id']))}
-                    **Options**: """ \
-              + ("new events/" if n['updates_new'] else "") \
-              + ("modified events/" if n['updates_mod'] else "") \
-              + ("cancelled events/" if n['updates_del'] else "") \
-              + "\n **Associated Summaries** : "
-        items = [] #TODO : handle when >= 25 summaries
-        for s in acc.get_all_summaries(n['watch_id']):
-            sday = int(datetime.datetime.fromisoformat(s['base_date']).timestamp())
-            freq = str(EventNotifier.parse_delta(s['frequency']))
-            items.append(discord.EmbedField(
-                name=s['summary_id'],
-                value=f"**Base date** : <t:{int(sday)}:F>\n**Frequency**: {freq}"
-            ))
-        embeds.append(discord.Embed(title=title, description = desc, fields=items))
-    mypages = [pages.Page(content="", embeds=[e]) for e in embeds]
-    if mypages:
-        paginator = pages.Paginator(pages=mypages) #TODO : prettier
-        await paginator.respond(ctx.interaction, ephemeral=True)
-    else:
-        await ctx.respond("No notifier found.", ephemeral=True)
-
-
-
-
-@bot.slash_command(description="Force a check for some change in all summaries")
-@access_control(1)
-async def update_all_summaries(ctx):
-    await ctx.respond('Updating all summaries...', ephemeral=True)
-    await server_notifiers[ctx.guild.id].update_all_summaries()
-
-
-@bot.slash_command(description="[DANGEROUS] Delete everything and dissociate google account")
-@access_control(2)
-async def purge(ctx):
-    async def action():
-        await server_notifiers[ctx.guild.id].purge()
-    await ctx.respond(
-        "# WARNING : THIS WILL DELETE ALL CONFIGS.",
-        view=DangerForm(action),
-        ephemeral = True
-    )
-
-@bot.slash_command(description="Privacy policy")
-async def privacy_policy(ctx):
-    await ctx.respond(
-      "Privacy policy : https://github.com/PlaySorbonne/contretemps-bot/blob/main/privacy-policy",
-      ephemeral = True
-    )
- 
-############################## END SLASH COMMANDS ##############################
-
-
-#TODO : Command allowing to EDIT notifiers and summaries
-#TODO : force update all summaries of server
-#TODO : restrict to only guilds (or handle non Member user objects (no roles)
-# note to self : autocomplete for slash commands gives max 25 choices
-
-
-################################ BOT LAUNCH ###################################
-token = open('.discord_token', 'r').read()
-bot.run(token)
-############################## END BOT LAUNCH #################################
-
+############################## END VIEWS ##############################

@@ -168,8 +168,9 @@ class EventNotifier:
                 if bad_message:
                     d.modify_summary(s, {'base_date':base_date.isoformat()})
                     s = d.get_summary(self.__server_id, s['watch_id'], s['summary_id'])
-                    await self.delete_summary_message(s, d=d)
-                    await self.publish_summary(s, d=d)
+                    if s: # summary might get deleted here (TODO: handle race-condition)
+                        await self.delete_summary_message(s, d=d)
+                        await self.publish_summary(s, d=d)
                     
     
     async def delete_watch(self, watch_id, d=None):
