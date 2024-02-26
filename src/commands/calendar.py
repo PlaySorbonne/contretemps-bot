@@ -30,6 +30,7 @@ import functools
 
 from .interactions.calendar import \
     ConnectModal, ConnectView, AddWatchForm, MakeSummaryForm
+from .interactions.common import DangerForm
 from .interactions.common import access_control
 from bot import server_notifiers
 
@@ -104,7 +105,7 @@ class CalendarCommands(commands.Cog):
         emoji = { 1 : ':green_square:', 2 : ':red_square:' }
         ld = { 1 : 'editing notifiers (1)', 2 : 'all rights (2)' }
         desc = '\n'.join(
-          f'{emoji[u["access_level"]]} {u["mention"]} :  {ld[u["access_level"]]}'
+          f'{emoji[u.access_level]} {u.mention} :  {ld[u.access_level]}'
           for u in lvls
         )
         title = "Access levels"
@@ -144,20 +145,20 @@ class CalendarCommands(commands.Cog):
         desc = ""
         embeds = []
         for n in acc.get_all_watches():
-            title = f"Event Notifier : {n['watch_id']}"
-            desc =  f"""**Calendar**: {n['calendar_name']}
-                        **Channel**: {ctx.guild.get_channel_or_thread(int(n['channel_id']))}
+            title = f"Event Notifier : {n.watch_id}"
+            desc =  f"""**Calendar**: {n.calendar_name}
+                        **Channel**: {ctx.guild.get_channel_or_thread(int(n.channel_id))}
                         **Options**: """ \
-                  + ("new events/" if n['updates_new'] else "") \
-                  + ("modified events/" if n['updates_mod'] else "") \
-                  + ("cancelled events/" if n['updates_del'] else "") \
+                  + ("new events/" if n.updates_new else "") \
+                  + ("modified events/" if n.updates_mod else "") \
+                  + ("cancelled events/" if n.updates_del else "") \
                   + "\n **Associated Summaries** : "
             items = [] #TODO : handle when >= 25 summaries
-            for s in acc.get_all_summaries(n['watch_id']):
-                sday = int(datetime.datetime.fromisoformat(s['base_date']).timestamp())
-                freq = str(EventNotifier.parse_delta(s['frequency']))
+            for s in acc.get_all_summaries(n.watch_id):
+                sday = int(datetime.datetime.fromisoformat(s.base_date).timestamp())
+                freq = str(EventNotifier.parse_delta(s.frequency))
                 items.append(discord.EmbedField(
-                    name=s['summary_id'],
+                    name=s.summary_id,
                     value=f"**Base date** : <t:{int(sday)}:F>\n**Frequency**: {freq}"
                 ))
             embeds.append(discord.Embed(title=title, description = desc, fields=items))

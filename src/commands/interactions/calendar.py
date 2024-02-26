@@ -158,8 +158,8 @@ def MakeSummaryForm(guild): #TODO handle if there is no watch (0 elements to sel
     cals = server_notifiers[gid].get_all_watched_cals()
     formated = []
     for c in cals:
-        cname = bot.get_channel(int(c['channel_id'])).name
-        calname = c['watch_id']
+        cname = bot.get_channel(int(c.channel_id)).name
+        calname = c.watch_id
         formated.append((c,f'Channel: #{cname} ----- {calname}'))
     today = datetime.date.today()
     now = datetime.datetime.now()
@@ -256,7 +256,7 @@ def MakeSummaryForm(guild): #TODO handle if there is no watch (0 elements to sel
             if self.watched_cal is not None:
                 async def cback(self2, interaction):
                     hey = self2.children[0].value
-                    if not server_notifiers[gid].check_summary_uniqueness(self.watched_cal['watch_id'],hey): 
+                    if not server_notifiers[gid].check_summary_uniqueness(self.watched_cal.watch_id,hey):
                         await self.message.edit('A summary with that name already exists...')
                         await interaction.response.defer()
                     else : 

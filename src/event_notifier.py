@@ -16,7 +16,8 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 
-from database import Data
+from database.tools import get_or_create, select, detached_copy
+from database import calendar as DB, Session, engine
 
 from discord.ext import tasks 
 from discord import Embed, EmbedField
@@ -42,17 +43,19 @@ class EventNotifier:
         self.__b = bot
         self.__server_id = server_id
         self.__name = server_name
-        state = Data().check_server_connexion(server_id)
-        self.__link, self.connected = None, False
-        self.__email = state['gmail']
-        self.connect(state['gtoken'])
-        self.check_summaries.start()
+        with Session(engine) as session:
+            state = get_or_create(session, DB.ServerConnexion, server_id=server_id)
+            self.__link, self.connected = None, False
+            self.__email = state.gmail
+            self.connect(state.gtoken)
+            self.check_summaries.start()
+            session.commit()
         print("Succesfully configured", self.__name)
         
         
     def connect(self, tok):
-        watched_cals = Data().get_all_watched_cals(self.__server_id)
-        cals = [c['calendar_id'] for c in watched_cals]
+      with Session(engine) as s, s.begin():
+        server = s.get(DB.ServerConnexion, self.__server_id)
         if (tok):
             try:
                 new_link = CalendarApiLink(tok, [], self.update)
@@ -60,40 +63,42 @@ class EventNotifier:
                 if self.__email is None or self.__email == new_mail:
                     self.__link, self.connected = new_link, True
                     self.__email = new_mail
-                    Data().set_server_connexion(self.__server_id, tok, self.__email)
-                    for cal in cals: self.__link.watch_calendar(cal)
+                    server.gtoken, server.gmail = tok, self.__email
+                    for cal in server.watches:
+                      self.__link.watch_calendar(cal.calendar_id)
                     return True, self.__email
                 return False, f'New account ({new_mail}) different from old ({self.__email})'
             except CalendarApiLink.BadCredentials:
-                Data().set_server_connexion(self.__server_id, None, self.__email)
+                server.gtoken, server.gmail = None, self.__email
                 return False, "bad credentials for connection."
         else:
             return False, 'bad connection code'
     
     async def purge(self):
-        d = Data()
-        for w in d.get_all_watched_cals(self.__server_id):
-            await self.delete_watch(w['watch_id'], d=d)
-        d.set_server_connexion(self.__server_id, None, None)
+      with Session(engine, autoflush=False) as d, d.begin():
+        server = d.get(DB.ServerConnexion, self.__server_id)
+        for w in server.watches:
+            await self.delete_watch(w.watch_id, d=d)
+        server.gtoken, server.gmail = None, None
         self.__email, self.__link, self.connected = None, None, False
     
     def get_email(self):
         return self.__email
     
     async def add_watch(self, channel_id, cal, new, dele, mod, name):
-        new_col = {
-            'server_id': self.__server_id,
-            'watch_id': name,
-            'channel_id' : channel_id,
-            'filter' : '',
-            'updates_new': new,
-            'updates_mod': mod,
-            'updates_del': dele,
-            'replace':'',
-            'calendar_id': cal['id'],
-            'calendar_name':cal['name'],
-        }
-        Data().insert_cols_in_table('watched_calendar', [new_col])
+        with Session(engine) as s, s.begin():
+            new_watch = DB.WatchedCalendar(
+              server_id = self.__server_id,
+              watch_id = name,
+              channel_id = channel_id,
+              updates_new = new,
+              updates_mod = mod,
+              updates_del = dele,
+              calendar_id = cal['id'],
+              calendar_name = cal['name']
+            )
+            s.add(new_watch)
+        
         r = self.safe_calendar_call(
             lambda : self.__link.watch_calendar(cal['id'])
         )
@@ -105,16 +110,17 @@ class EventNotifier:
         
     
     def get_all_watched_cals(self):
-        return Data().get_all_watched_cals(self.__server_id)        
+        with Session(engine) as s:
+            return s.get(DB.ServerConnexion, self.__server_id).watches
         
     
     async def update(self, modifs):
-        if (self.__link is None):
-            return
-        #TODO handle timezones ?
-        d = Data()
+      if (self.__link is None):
+          return
+      #TODO handle timezones ?
+      with Session(engine) as d, d.begin():
         for cal in modifs:
-            for watched in d.get_all_watched_cals_for_cal(self.__server_id, cal):
+            for watched in d.scalars(select(DB.WatchedCalendar).filter_by(server_id=self.__server_id, calendar_id=cal)):
                 for e in modifs[cal]:
                     if not True : #TODO self.filter_tags(e['tags'], watched['filter']):
                         continue
@@ -122,42 +128,43 @@ class EventNotifier:
                     
                     change = None
                     if e['status'] == 'cancelled' :
-                        if watched['updates_del']:
+                        if watched.updates_del:
                             change = 'del'
                     elif within_delta(
                         datetime.datetime.fromisoformat(e['updated'][:-1]),
                         datetime.datetime.fromisoformat(e['created'][:-1]),
                         datetime.timedelta(seconds=2)
                          ):
-                        if watched['updates_new']:
+                        if watched.updates_new:
                             change = 'new'
                     else: # Event modified
-                        if watched['updates_mod']:
+                        if watched.updates_mod:
                             change = 'mod'
                     if change:
-                        u = await self.__b.get_channel(int(watched['channel_id'])).send(
+                        u = await self.__b.get_channel(int(watched.channel_id)).send(
                           "",
                           embed=EventNotificationEmbed(e, change)
                         )
                         # TODO : store this message and delete it when new update / when the watch is deleted
                 # Handling all the summaries attached to the watch
-                summaries = d.get_watch_summaries(self.__server_id, watched['watch_id'])
+                summaries = watched.summaries
                 for s in summaries:
-                    await self.update_summary_message(s, watch=watched, d=d)
-
+                    await self.update_summary_message(s, d=d)
+    
     
     @tasks.loop(seconds=5)
     async def check_summaries(self):
-        if (self.__link is None):
-            return #TODO : maybe message the admins at least one time ?
-        d = Data()
-        for w in d.get_all_watched_cals(self.__server_id):
-            for s in d.get_watch_summaries(self.__server_id, w['watch_id']):
+      if (self.__link is None):
+          return #TODO : maybe message the admins at least one time ?
+      with Session(engine) as d, d.begin(): #TODO : CHECK THIS
+        for w in d.get(DB.ServerConnexion, self.__server_id).watches:
+            for s in w.summaries:
                 # check if it is time to update the summary base date
-                base_date = EventNotifier.iso_to_utcdt(s['base_date'])
-                delta = EventNotifier.parse_delta(s['frequency'])
+                #TODO : handle these ad-hoc conversions using sqlalchemy's types (for dates and maybe for discord snowflakes ?)
+                base_date = EventNotifier.iso_to_utcdt(s.base_date)
+                delta = EventNotifier.parse_delta(s.frequency)
                 now = datetime.datetime.now().replace(tzinfo=UTC)
-                m = await self.fetch_message_list_opt(w['channel_id'], s['message_id'])
+                m = await self.fetch_message_list_opt(w.channel_id, s.message_id)
                 bad_message = now > base_date + delta
                 if (bad_message): 
                     print("Found finished summary")
@@ -166,48 +173,55 @@ class EventNotifier:
                 bad_message = bad_message or m is None or\
                               (m[0].created_at+timedelta(hours=1)) < base_date and base_date <= now
                 if bad_message:
-                    d.modify_summary(s, {'base_date':base_date.isoformat()})
-                    s = d.get_summary(self.__server_id, s['watch_id'], s['summary_id'])
-                    if s: # summary might get deleted here (TODO: handle race-condition)
-                        await self.delete_summary_message(s, d=d)
-                        await self.publish_summary(s, d=d)
-                    
+                    s.base_date = base_date.isoformat()
+                    #TODO : possible race condition here is message gets deleted from db just before this ?
+                    await self.delete_summary_message(s, d=d)
+                    await self.publish_summary(s, d=d)
     
     async def delete_watch(self, watch_id, d=None):
-        if d is None : d = Data()
-        w = d.get_watch(self.__server_id, watch_id)
+        if d is None :
+          with Session(engine,autoflush=False) as d, d.begin():
+            return await self.delete_watch(watch_id, d)
+        w = d.get(DB.WatchedCalendar, (self.__server_id, watch_id))
         if w is None:
             return False
-        S = d.get_watch_summaries(self.__server_id, watch_id)
+        S = w.summaries
         for s in S:
-            await self.delete_summary(watch_id, s['summary_id'], d=d) # redundant requests :[[
-        d.delete_watch(self.__server_id, watch_id)
+            await self.delete_summary(watch_id, s.summary_id, d=d) # redundant requests :[[ Not anymore !!
+        d.delete(w)
         return True
     
     async def delete_summary(self, watch_id, summary_id, d=None):
-        if d is None: d=Data()
-        s = d.get_summary(self.__server_id, watch_id, summary_id)
-        w = d.get_watch(self.__server_id, watch_id)
+        if d is None:
+          with Session(engine) as d, d.begin():
+            return await self.delete_summary(watch_id, summary_id, d=d)
+        s = d.get(DB.EventSummary,
+                  {'summary_id' : summary_id, 'watch_id' : watch_id,
+                   'server_id': self.__server_id})
         if s is None: #TODO proper logging
             print(f"Did not find summary {summary_id}")
             return False
-        await self.delete_summary_message(s, watch=w, upd_db=False, d=d)
-        d.delete_summary(self.__server_id, watch_id, summary_id)
+        await self.delete_summary_message(s, upd_db=False, d=d)
+        d.delete(s)
         return True
     
     async def clear_summaries(self, watch_id, d=None):
-        if d is None: d=Data()
-        for s in d.get_watch_summaries(self.__server_id, watch_id):
-            await self.delete_summary(s['watch_id'], s['summary_id'], d) #redundant db requests :[
+        if d is None:
+          with Session(engine) as d, d.begin():
+            return await self.clear_summaries(watch_id,d)
+        for s in d.get(DB.WatchedCalendar, (self.__server_id, watch_id)).summaries:
+            await self.delete_summary(s.watch_id, s.summary_id, d) #redundant db requests :[ NOT ANYMORE HAHAHAHA
     
-    async def delete_summary_message(self, summary, watch=None, upd_db=False, d=None):
-        if d is None: d=Data()
-        if watch is None:
-            watch = d.get_watch(self.__server_id, summary['watch_id'])
-        if summary['message_id'] is not None:
-             for mid in summary['message_id'].split(';'):
+    async def delete_summary_message(self, summary, upd_db=False, d=None):
+        if d is None:
+          with Session(engine) as d, d.begin():
+            return await self.delete_summary_message(summary, upd_db, d)
+        d.add(summary)
+        watch = summary.watch
+        if summary.message_id is not None:
+             for mid in summary.message_id.split(';'):
                  try:
-                    ch = self.__b.get_channel(int(watch['channel_id']))
+                    ch = self.__b.get_channel(int(watch.channel_id))
                     if ch is not None:
                         m = (await ch.fetch_message(int(mid)))
                         if (m.author == self.__b.user): #should be always true but extra check since we're deleting a message
@@ -217,34 +231,38 @@ class EventNotifier:
                  except NotFound: #message does not exist anymore, nothing to do
                     print("Tried to delete message from server, but it did not exist :((((")
         if (upd_db):
-            d.modify_summary_message(summary, None)
+            summary.message_id = None
     
-    async def update_summary_message(self, summary, watch=None, d=None):
-        if watch is None:
-            watch = d.get_watch(self.__server_id, summary['watch_id'])
-        if d is None : d = Data()
+    async def update_summary_message(self, summary, d=None):
+        if d is None:
+          with Session(engine) as d, d.begin():
+            return await self.update_summary_message(self, summary, d)
+        d.add(summary)
+        watch = summary.watch
         
         new_evs = self.get_summary_events(summary)
         if (new_evs is None):
-            await self.__b.get_channel(int(watch['channel_id'])).send(
-              f'Warning : I am disconnected from Google, summary {summary["summary_id"]} not updated'
+            await self.__b.get_channel(int(watch.channel_id)).send(
+              f'Warning : I am disconnected from Google, summary {summary.summary_id} not updated'
             )
             return
-        m = await self.fetch_message_list_opt(watch['channel_id'], summary['message_id'])
+        m = await self.fetch_message_list_opt(watch.channel_id, summary.message_id)
         await self.publish_summary(summary, m=m, d=d, new_evs = new_evs)
 
 
     async def update_all_summaries(self):
-        d = Data()
-        for w in d.get_all_watched_cals(self.__server_id):
-            for s in d.get_watch_summaries(self.__server_id, w['watch_id']):
-                await self.update_summary_message(s, watch=w, d=d)
+      with Session(engine) as d, d.begin():
+        for w in d.get(DB.ServerConnexion, self.__server_id).watches:
+            for s in w.summaries:
+                await self.update_summary_message(s, d=d)
 
 
-    async def publish_summary(self, summary, m=None, watch=None , d=None, new_evs=None):
-        if d is None: d=Data()
-        if watch is None:
-            watch = d.get_watch(self.__server_id, summary['watch_id'])
+    async def publish_summary(self, summary, m=None, watch=None , d=None, new_evs=None): #TODO remove watch
+        if d is None:
+          with Session(engine) as s, s.begin():
+            return await self.publish_summary(summary, m, watch, s, new_evs)
+        d.add(summary) # we assume summary is attached to d
+        watch = summary.watch
         if new_evs is None:
             new_evs = self.get_summary_events(summary)
             if (new_evs is None):
@@ -252,14 +270,14 @@ class EventNotifier:
                     f'Warning : I am disconnected from Google, summary {summary["summary_id"]} cannot be published'
                 )
                 return
-        content = '# ' + summary['summary_id'] + '\n' + summary['header']
+        content = '# ' + summary.summary_id + '\n' + (summary.header or '')
         new_embd = self.make_daily_embed("", "", new_evs)
         if m is None or len(new_embd) > len(m):
-            if m : await self.delete_summary_message(summary, watch, upd_db=False, d=d)
-            ms = [await self.__b.get_channel(int(watch['channel_id'])).send(content=content, embed=new_embd[0])]
+            if m : await self.delete_summary_message(summary, upd_db=False, d=d)
+            ms = [await self.__b.get_channel(int(watch.channel_id)).send(content=content, embed=new_embd[0])]
             for embed in new_embd[1:]:
-                ms.append(await self.__b.get_channel(int(watch['channel_id'])).send(content='', embed=embed))
-            d.modify_summary(summary, {'message_id' : ';'.join(str(m.id) for m in ms) })
+                ms.append(await self.__b.get_channel(int(watch.channel_id)).send(content='', embed=embed))
+            summary.message_id = ';'.join(str(m.id) for m in ms)
         else:
             for i in range(len(new_embd)):
                 await m[i].edit(content=('' if i>0 else content), embed=new_embd[i])
@@ -275,50 +293,55 @@ class EventNotifier:
         return self.safe_calendar_call(lambda:self.__link.get_calendars())          
     
     def get_all_watches(self):
-        res = Data().get_all_watched_cals(self.__server_id)
-        return res if res is not None else []
+      with Session(engine, expire_on_commit=False) as d, d.begin():
+        return d.get(DB.ServerConnexion, self.__server_id).watches
         
     def get_all_summaries(self, watch_id):
-        res = Data().get_watch_summaries(self.__server_id, watch_id)
-        return res if res is not None else []
+      with Session(engine, expire_on_commit=False) as d, d.begin():
+        return d.get(DB.WatchedCalendar, (self.__server_id, watch_id)).summaries
     
     
     def check_summary_uniqueness(self, watch_id, new_name):
-        return Data().get_summary(self.__server_id, watch_id, new_name) is None
+      with Session(engine) as d:
+        return d.get(DB.EventSummary, (self.__server_id, watch_id, new_name)) is None
     def check_watch_uniqueness(self, new_name):
-        return Data().get_watch(self.__server_id, new_name) is None
+      with Session(engine) as d:
+        return d.get(DB.WatchedCalendar,(self.__server_id, new_name)) is None
     
     async def add_summary(self, watch_cal, duration, in_months, base_day, header, name):
         base_day_repr = base_day.isoformat()
         duration = relativedelta(months=duration) if in_months else relativedelta(days=duration)
-        new_col = {
-            'server_id': self.__server_id,
-            'watch_id' :watch_cal['watch_id'],
-            'summary_id':name,
-            'base_date': base_day_repr,
-            'frequency': repr(duration),
-            'header': header,
-            'message_id' : None
-        }
-        events = self.get_summary_events(new_col)
-        if (events is None):
-            await self.__b.get_channel(int(watch_cal['channel_id'])).send(
-              f'Warning : I am disconnected from Google, summary {name} not published'
-            )
-            # We remember the summary for future publication
-            Data().insert_cols_in_table('event_summary', [new_col])
-            return
-        Data().insert_cols_in_table('event_summary', [new_col])
-        await self.publish_summary(new_col)
+        new_summary = DB.EventSummary(
+            server_id = self.__server_id,
+            watch_id = watch_cal.watch_id,
+            summary_id = name,
+            base_date = base_day_repr,
+            frequency = repr(duration),
+            header = header,
+            message_id = None
+        )
+        with Session(engine) as s, s.begin():
+          s.add(new_summary), s.flush() # flush to populate new_summary.watch
+          events = self.get_summary_events(new_summary)
+          if (events is None):
+              await self.__b.get_channel(int(watch_cal.channel_id)).send(
+                f'Warning : I am disconnected from Google, summary {name} not published'
+              )
+              # We remember the summary for future publication
+              return
+          s.add(new_summary)
+        await self.publish_summary(new_summary)
         
     
     def get_watches_names(self):
-        W = Data().get_all_watched_cals(self.__server_id)
-        return [w['watch_id'] for w in W]
+      with Session(engine) as d:
+        W = d.get(DB.ServerConnexion,self.__server_id).watches
+        return [w.watch_id for w in W]
     
     def get_summaries_names(self, watch_id):
-        S = Data().get_watch_summaries(self.__server_id, watch_id)
-        return [s['summary_id'] for s in S]
+      with Session(engine) as d:
+        S = d.get(DB.WatchedCalendar, (self.__server_id, watch_id)).summaries
+        return [s.summary_id for s in S]
     
     # TODO TODO
     def filter_tags(self, tags, filt):
@@ -329,13 +352,13 @@ class EventNotifier:
         Returns a list of the next events for a summary
         If the connexion to the calendar is no longer valid, returns None
         """
-        base_date = datetime.datetime.fromisoformat(summary['base_date'])
+        base_date = datetime.datetime.fromisoformat(summary.base_date)
         locs=dict()
-        exec(f'duration = {summary["frequency"]}', globals(), locs)
+        exec(f'duration = {summary.frequency}', globals(), locs)
         end_date = base_date+locs['duration']
-        watch = Data().get_watch(summary['server_id'], summary['watch_id'])
+        watch = summary.watch
         events = self.safe_calendar_call(
-            lambda : self.__link.get_period_events(watch['calendar_id'], base_date, end_date)
+            lambda : self.__link.get_period_events(watch.calendar_id, base_date, end_date)
         )
         return events
     
@@ -401,6 +424,7 @@ class EventNotifier:
         
     
     async def fetch_message_list_opt(self, channel_id, msg_ids):
+        if msg_ids is None: return None
         l = [await self.fetch_message_opt(channel_id, msg_id) for msg_id in msg_ids.split(';')]
         if None in l:
             await self.purge_opt_message_list(l)
@@ -411,22 +435,34 @@ class EventNotifier:
         for m in l:
             if m is not None:
                 try: await m.delete()
-                except Exception : pass
+                except Exception : pass #TODO not like this
     
     def set_access(self, uid, mention, l):
+      with Session(engine) as d, d.begin():
+        access = d.get(DB.UserAccess, (self.__server_id, uid))
         if (l == 0):
-            Data().delete_access(self.__server_id, str(uid))
+            if access: d.delete(access)
         else:
-            Data().set_access(self.__server_id, str(uid), mention, l)
+            if access: access.access_level = l
+            else: d.add(DB.UserAccess(access_level=l, thing_id=uid,
+                                  mention=mention, server_id=self.__server_id))
     
     def get_access_level(self, author):
+      def level(d, thing):
+        r = d.get(DB.UserAccess, (self.__server_id, str(thing)))
+        if r : return r.access_level
+        return 0
+      with Session(engine) as d:
         return max(
-            max(Data().get_access(self.__server_id, str(r.id)) for r in author.roles),   
-            Data().get_access(self.__server_id, str(author.id))
+            max(level(d,r.id) for r in author.roles),
+            level(d,author.id)
         )
     
     def list_access_levels(self):
-        return Data().get_access_levels(self.__server_id)
+      with Session(engine) as d, d.begin():
+        r = d.scalars(select(DB.UserAccess)
+                      .filter_by(server_id=self.__server_id))
+        return [detached_copy(a) for a in r]
     
     async def fetch_message_opt(self, cid, mid):
         if mid is not None:
