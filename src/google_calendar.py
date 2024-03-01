@@ -252,12 +252,17 @@ class CalendarApiLink:
     async def update(self):
         modified = dict()
         for cal in self.__watched_cals:
-            resp = self.__c.events().list(
-                calendarId=cal,
-                singleEvents=True,
-                syncToken=self.__watched_cals[cal]['tok'],
-                showDeleted=True,
-            ).execute()
+            args = {
+              'calendarId':cal,
+              'singleEvents':True,
+              'syncToken':self.__watched_cals[cal]['tok'],
+              'showDeleted':True
+            }
+            try:
+                resp = self.__c.events().list(**args).execute()
+            except HttpError:
+                args.pop('syncToken')
+                resp = self.__c.events().list(**args)
             newevnts = resp.get('items')
             while 'nextPageToken' in resp:
                 resp = self.__c.events().list(
