@@ -33,7 +33,7 @@ The required packages are python3, pip, and sqlite3
 6. Run the bot : `python3 src/main.py`
 
 The invite link to add the bot (containing the correct scopes and permissions) is:
-https://discord.com/api/oauth2/authorize?client_id=[YOUR_DISCORD_APP_ID]&permissions=17875654069312&scope=applications.commands%20bot
+https://discord.com/api/oauth2/authorize?client_id=[YOUR_DISCORD_APP_ID]&permissions=18133419477056&scope=applications.commands%20bot
 where you replace [YOUR_DISCORD_APP_ID] with the id that can be found when creating the app in step 2.
 
 

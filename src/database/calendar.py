@@ -16,19 +16,10 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 from typing import List, Optional as NULL
-from .base import Base
+from .base import Base, ServerConnexion
 from sqlalchemy.orm import Mapped, mapped_column as mc, relationship
 from sqlalchemy import ForeignKey as FK, ForeignKeyConstraint
 
-class ServerConnexion(Base):
-    __tablename__ = "server_connexion"
-    
-    server_id: Mapped[str] = mc(primary_key=True)
-    gtoken: Mapped[NULL[str]]
-    gmail: Mapped[NULL[str]]
-    
-    access_rules: Mapped[List['UserAccess']] = relationship(back_populates="server")
-    watches: Mapped[List['WatchedCalendar']] = relationship(back_populates="server")
 
 
 class UserAccess(Base):

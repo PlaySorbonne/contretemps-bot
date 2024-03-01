@@ -5,4 +5,4 @@ engine = create_engine("sqlite:///data.db") # TODO: an env file containing all p
 from sqlalchemy.orm import Session
 
 # Load calendar models to make them populate Base.metadata
-from . import calendar as _
+from . import calendar as _, tasker as _
