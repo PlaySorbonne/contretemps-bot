@@ -32,6 +32,10 @@ class Project(Base):
     project_roles : Mapped[str]
     reminder_frequency : Mapped[str]
     
+    tasks : Mapped[List['Task']] = relationship(back_populates='project')
+    contributors : Mapped[List['Contributor']] = (
+        relationship(back_populates='project'))
+    
 class Task(Base):
     __tablename__ = 'task'
     
@@ -46,13 +50,33 @@ class Task(Base):
     next_recall : Mapped[NULL[str]]
     main_message_id : Mapped[str]
     sec_message_id : Mapped[str]
+    
+    project : Mapped[Project] = relationship(back_populates='tasks')
+    veterans : Mapped[List['Contributor']] = relationship(
+        back_populates='mastered_tasks', secondary='TaskVeteran')
+    interested : Mapped[List['Contributor']] = relationship(
+        back_populates='interesting_tasks',
+        secondary='TaskInterested')
+    active : Mapped[List['Contributor']] = relationship(
+        back_populates='current_tasks', secondary='TaskParticipant')
+    steps : Mapped[List['TaskStep']] = (
+        relationship(order_by='task_step.step_number'))
 
 class Contributor(Base):
     __tablename__ = 'contributor'
     
     member_id : Mapped[str] = mc(primary_key=True)
+    project_id = mc(FK(Project.project_id), primary_key=True)
     no_dms : Mapped[int]
     no_mention : Mapped[int]
+    
+    project : Mapped[Project] = relationship(back_populates='contributors')
+    mastered_tasks : Mapped[List[Task]] = relationship(
+        back_populates='veterans', secondary='TaskVeteran')
+    interesting_tasks : Mapped[List[Task]] = relationship(
+        back_populates='interested', secondary='TaskInterested')
+    current_tasks : Mapped[List[Task]] = relationship(
+        back_populates='active', secondary='TaskParticipant')
 
 class TaskLog(Base):
     __tablename__ = 'task_log'
@@ -63,12 +87,13 @@ class TaskLog(Base):
     project_id : Mapped[int] = mc(primary_key=True)
     task_title : Mapped[str] = mc(primary_key=True)
     timestamp : Mapped[str] = mc(primary_key=True)
+    member_id : Mapped[str] = mc(primary_key=True)
     log_message : Mapped[str]
     log_type : Mapped[int]
-    member_id = mc(FK(Contributor.member_id))
     ForeignKeyConstraint([project_id, task_title],
                          [Task.project_id, Task.title])
-
+    ForeignKeyConstraint([project_id, member_id],
+                         [Contributor.project_id, Contributor.member_id])
 
 class TaskStep(Base):
     __tablename__ = 'task_step'
@@ -83,20 +108,20 @@ class TaskStep(Base):
 class TaskDependency(Base):
     __tablename__ = 'task_dependency'
     
-    pid1 : Mapped[int] = mc(primary_key=True)
-    tid1 : Mapped[str] = mc(primary_key=True)
-    t1 = ForeignKeyConstraint([pid1,tid1], [Task.project_id, Task.title])
-    pid2 : Mapped[int] = mc(primary_key=True)
-    tid2 : Mapped[str] = mc(primary_key=True)
-    t2 = ForeignKeyConstraint([pid2,tid2], [Task.project_id, Task.title])
-    check_project = CheckConstraint(pid1 == pid2)
+    project_id : Mapped[int] = mc(primary_key=True)
+    task1 : Mapped[str] = mc(primary_key=True)
+    task2 : Mapped[str] = mc(primary_key=True)
+    t1 = ForeignKeyConstraint([project_id,task1],[Task.project_id, Task.title])
+    t2 = ForeignKeyConstraint([project_id,task2], [Task.project_id, Task.title])
 
 class ContributorTaskMixin:
     project_id : Mapped[int] = mc(primary_key=True)
     task_title : Mapped[str] = mc(primary_key=True)
-    member_id = mc(FK(Contributor.member_id), primary_key=True)
+    member_id : Mapped[str] = mc(primary_key=True)
     ForeignKeyConstraint([project_id, task_title],
-                         [Task.project_id, Task.title])   
+                         [Task.project_id, Task.title])
+    ForeignKeyConstraint([project_id, member_id],
+                         [Contributor.project_id, Contributor.member_id])
 
 class TaskParticipant(Base, ContributorTaskMixin):
     __tablename__ = 'task_participant'
