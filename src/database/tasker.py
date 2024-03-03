@@ -19,6 +19,7 @@ from typing import List, Optional as NULL
 from .base import Base, ServerConnexion
 from sqlalchemy.orm import Mapped, mapped_column as mc, relationship
 from sqlalchemy import ForeignKey as FK, ForeignKeyConstraint, CheckConstraint
+from sqlalchemy.ext.declarative import declared_attr
 
 
 
@@ -53,14 +54,17 @@ class Task(Base):
     
     project : Mapped[Project] = relationship(back_populates='tasks')
     veterans : Mapped[List['Contributor']] = relationship(
-        back_populates='mastered_tasks', secondary='TaskVeteran')
+        back_populates='mastered_tasks', secondary='task_veteran')
     interested : Mapped[List['Contributor']] = relationship(
         back_populates='interesting_tasks',
-        secondary='TaskInterested')
+        secondary='task_interested')
     active : Mapped[List['Contributor']] = relationship(
-        back_populates='current_tasks', secondary='TaskParticipant')
+        back_populates='current_tasks', secondary='task_participant')
     steps : Mapped[List['TaskStep']] = (
-        relationship(order_by='task_step.step_number'))
+        relationship(order_by='TaskStep.step_number'))
+    successors : Mapped[List['Task']] = relationship(
+        secondary='task_dependency',
+        foreign_keys='(TaskDependency.project_id, TaskDependency.task1)')
 
 class Contributor(Base):
     __tablename__ = 'contributor'
@@ -72,11 +76,11 @@ class Contributor(Base):
     
     project : Mapped[Project] = relationship(back_populates='contributors')
     mastered_tasks : Mapped[List[Task]] = relationship(
-        back_populates='veterans', secondary='TaskVeteran')
+        back_populates='veterans', secondary='task_veteran')
     interesting_tasks : Mapped[List[Task]] = relationship(
-        back_populates='interested', secondary='TaskInterested')
+        back_populates='interested', secondary='task_interested')
     current_tasks : Mapped[List[Task]] = relationship(
-        back_populates='active', secondary='TaskParticipant')
+        back_populates='active', secondary='task_participant')
 
 class TaskLog(Base):
     __tablename__ = 'task_log'
@@ -98,10 +102,14 @@ class TaskLog(Base):
 class TaskStep(Base):
     __tablename__ = 'task_step'
     
+    SUBTASK, REMARK = 0,1
+    
     project_id : Mapped[int] = mc(primary_key=True)
     task_title : Mapped[str] = mc(primary_key=True)
     step_number : Mapped[int]
     step_description : Mapped[str]
+    done : Mapped[NULL[int]]
+    kind : Mapped[int]
     ForeignKeyConstraint([project_id, task_title],
                          [Task.project_id, Task.title])
 
@@ -118,18 +126,23 @@ class ContributorTaskMixin:
     project_id : Mapped[int] = mc(primary_key=True)
     task_title : Mapped[str] = mc(primary_key=True)
     member_id : Mapped[str] = mc(primary_key=True)
-    ForeignKeyConstraint([project_id, task_title],
-                         [Task.project_id, Task.title])
-    ForeignKeyConstraint([project_id, member_id],
-                         [Contributor.project_id, Contributor.member_id])
+    
+    @declared_attr
+    def task_fk(cls):
+        return ForeignKeyConstraint([cls.project_id, cls.task_title],
+                                    [Task.project_id, Task.title])
+    @declared_attr
+    def contributor_fk(cls):
+      return ForeignKeyConstraint([cls.project_id, cls.member_id],
+                               [Contributor.project_id, Contributor.member_id])
 
-class TaskParticipant(Base, ContributorTaskMixin):
+class TaskParticipant(ContributorTaskMixin, Base):
     __tablename__ = 'task_participant'
 
-class TaskInterested(Base, ContributorTaskMixin):
+class TaskInterested(ContributorTaskMixin, Base):
     __tablename__ = 'task_interested'
 
-class TaskVeteran(Base, ContributorTaskMixin):
+class TaskVeteran(ContributorTaskMixin, Base):
     __tablename__ = 'task_veteran'
 
      
