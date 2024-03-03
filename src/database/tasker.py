@@ -19,6 +19,7 @@ from typing import List, Optional as NULL
 from .base import Base, ServerConnexion
 from sqlalchemy.orm import Mapped, mapped_column as mc, relationship
 from sqlalchemy import ForeignKey as FK, ForeignKeyConstraint, CheckConstraint
+from sqlalchemy import and_
 from sqlalchemy.ext.declarative import declared_attr
 
 
@@ -29,28 +30,38 @@ class Project(Base):
     project_id : Mapped[int] = mc(primary_key=True)
     project_name : Mapped[str]
     server_id = mc(FK(ServerConnexion.server_id))
-    forum_id : Mapped[str]
-    project_roles : Mapped[str]
-    reminder_frequency : Mapped[str]
+    forum_id : Mapped[NULL[str]]
+    project_roles : Mapped[str] = mc(default='')
+    reminder_frequency : Mapped[NULL[str]]
     
+    server : Mapped['ServerConnexion'] = relationship(back_populates='projects')
     tasks : Mapped[List['Task']] = relationship(back_populates='project')
     contributors : Mapped[List['Contributor']] = (
         relationship(back_populates='project'))
+
+class TaskDependency(Base):
+    __tablename__ = 'task_dependency'
     
+    project_id : Mapped[int] = mc(primary_key=True)
+    task1 : Mapped[str] = mc(primary_key=True)
+    task2 : Mapped[str] = mc(primary_key=True)
+    t1 = ForeignKeyConstraint([project_id,task1],['task.project_id', 'task.title'])
+    t2 = ForeignKeyConstraint([project_id,task2], ['task.project_id', 'task.title'])
+
 class Task(Base):
     __tablename__ = 'task'
     
     project_id : Mapped[int] = mc(FK(Project.project_id), primary_key=True)
     title : Mapped[str] = mc(primary_key=True)
-    description : Mapped[str]
+    description : Mapped[str] = mc(default='')
     starts_after : Mapped[NULL[str]]
     ends_before : Mapped[NULL[str]]
     urgent_after : Mapped[NULL[str]]
-    ignore : Mapped[int]
-    advancement : Mapped[int]
+    ignore : Mapped[int] = mc(default=0)
+    advancement : Mapped[int] = mc(default=0)
     next_recall : Mapped[NULL[str]]
-    main_message_id : Mapped[str]
-    sec_message_id : Mapped[str]
+    main_message_id : Mapped[NULL[str]]
+    sec_message_id : Mapped[NULL[str]]
     
     project : Mapped[Project] = relationship(back_populates='tasks')
     veterans : Mapped[List['Contributor']] = relationship(
@@ -64,7 +75,12 @@ class Task(Base):
         relationship(order_by='TaskStep.step_number'))
     successors : Mapped[List['Task']] = relationship(
         secondary='task_dependency',
-        foreign_keys='(TaskDependency.project_id, TaskDependency.task1)')
+        primaryjoin=and_(title == TaskDependency.task1,project_id == TaskDependency.project_id),
+        secondaryjoin=and_(title == TaskDependency.task2, project_id == TaskDependency.project_id),
+        backref='predecessors')
+    
+    def __repr__(s):
+      return f"Task(project={s.project_id}, title='{s.title}')"
 
 class Contributor(Base):
     __tablename__ = 'contributor'
@@ -104,23 +120,19 @@ class TaskStep(Base):
     
     SUBTASK, REMARK = 0,1
     
-    project_id : Mapped[int] = mc(primary_key=True)
-    task_title : Mapped[str] = mc(primary_key=True)
-    step_number : Mapped[int]
+    step_id : Mapped[int] = mc(primary_key=True)
+    project_id : Mapped[int] = mc()
+    task_title : Mapped[str] = mc()
+    step_number : Mapped[NULL[int]]
     step_description : Mapped[str]
     done : Mapped[NULL[int]]
     kind : Mapped[int]
     ForeignKeyConstraint([project_id, task_title],
                          [Task.project_id, Task.title])
-
-class TaskDependency(Base):
-    __tablename__ = 'task_dependency'
     
-    project_id : Mapped[int] = mc(primary_key=True)
-    task1 : Mapped[str] = mc(primary_key=True)
-    task2 : Mapped[str] = mc(primary_key=True)
-    t1 = ForeignKeyConstraint([project_id,task1],[Task.project_id, Task.title])
-    t2 = ForeignKeyConstraint([project_id,task2], [Task.project_id, Task.title])
+    def __repr__(self):
+      return f"TaskStep({self.project_id}, {self.step_description[:20]}-, ...)"
+
 
 class ContributorTaskMixin:
     project_id : Mapped[int] = mc(primary_key=True)

@@ -14,3 +14,4 @@ class ServerConnexion(Base):
     
     access_rules: Mapped[List['UserAccess']] = relationship(back_populates="server")
     watches: Mapped[List['WatchedCalendar']] = relationship(back_populates="server")
+    projects: Mapped[List['Project']] = relationship(back_populates="server")
