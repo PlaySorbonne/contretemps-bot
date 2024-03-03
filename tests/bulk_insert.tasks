@@ -1,0 +1,34 @@
+NewTask.
+Title <<Test new Tasker schemas>>
+Ref <<tnts>>
+Description <<
+Before starting the logical side of Tasker, we need to make sure that all the Models
+in database.tasker work as expected by trying to interact with them.
+>>
+StartDate <<2024-03-01 12:00>>
+EndDate <<2024-03-03 22:00>>
+MustStartBefore <<2024-03-02>>
+Steps <<
+  SubTask(1) <<Load database with some tasks and steps and dependencies and contributors>>
+  SubTask(2) <<Try and do some requests using sqlalchemy's orm>>
+  PS <<Be careful !>>
+>>
+Dependencies <<
+<<task-loading>>
+>>
+
+
+NewTask.
+Title <<Make a task bulk loading language>>
+Ref <<task-loading>>
+Description <<
+Make a generic, simple langage to describe a new task to add.
+This will be usefull as a way to load many tasks into a project,
+and avoiding the need to use a discord interaction each time.
+>>
+EndDate <<2024-03-03 14:00>>
+Steps <<
+  SubTask(1) <<Define and correctly specify the language>>
+  SubTask(2) <<Implement a parser for the language>>
+  PS <<Use a good parser>>
+>>
