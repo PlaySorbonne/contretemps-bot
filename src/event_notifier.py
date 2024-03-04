@@ -19,7 +19,7 @@
 from database.tools import get_or_create, select, detached_copy
 from database import calendar as DB, Session, engine
 
-from discord.ext import tasks 
+from discord.ext import tasks
 from discord import Embed, EmbedField
 from discord.errors import NotFound
 
