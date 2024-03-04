@@ -10,7 +10,7 @@ EndDate <<2024-03-03 22:00>>
 MustStartBefore <<2024-03-02>>
 Steps <<
   SubTask(1) <<Load database with some tasks and steps and dependencies and contributors>>
-  SubTask(2) <<Try and do some requests using sqlalchemy's orm>>
+  SubTask(2.5) <<Try and do some requests using sqlalchemy's orm>>
   PS <<Be careful !>>
 >>
 Dependencies <<

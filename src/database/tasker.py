@@ -18,7 +18,7 @@
 from typing import List, Optional as NULL
 from .base import Base, ServerConnexion
 from sqlalchemy.orm import Mapped, mapped_column as mc, relationship
-from sqlalchemy import ForeignKey as FK, ForeignKeyConstraint, CheckConstraint
+from sqlalchemy import ForeignKey as FK, ForeignKeyConstraint, UniqueConstraint
 from sqlalchemy import and_
 from sqlalchemy.ext.declarative import declared_attr
 
@@ -38,6 +38,8 @@ class Project(Base):
     tasks : Mapped[List['Task']] = relationship(back_populates='project')
     contributors : Mapped[List['Contributor']] = (
         relationship(back_populates='project'))
+    
+    UniqueConstraint("project_name", "server_id", name='project_name_unique')
 
 class TaskDependency(Base):
     __tablename__ = 'task_dependency'
@@ -60,6 +62,7 @@ class Task(Base):
     ignore : Mapped[int] = mc(default=0)
     advancement : Mapped[int] = mc(default=0)
     next_recall : Mapped[NULL[str]]
+    thread_id : Mapped[NULL[str]]
     main_message_id : Mapped[NULL[str]]
     sec_message_id : Mapped[NULL[str]]
     
@@ -87,8 +90,8 @@ class Contributor(Base):
     
     member_id : Mapped[str] = mc(primary_key=True)
     project_id = mc(FK(Project.project_id), primary_key=True)
-    no_dms : Mapped[int]
-    no_mention : Mapped[int]
+    no_dms : Mapped[int] = mc(default=0)
+    no_mention : Mapped[int] = mc(default=0)
     
     project : Mapped[Project] = relationship(back_populates='contributors')
     mastered_tasks : Mapped[List[Task]] = relationship(

@@ -76,7 +76,7 @@ class TaskMaker(Transformer):
     title = lambda self, items : ("title", items[0])
     description = lambda self, items : ("description", items[0])
     ref = lambda self, items : ("ref", items[0])
-    subtask = lambda self, items : (TaskStep.SUBTASK,int(items[0][:]),items[1])
+    subtask = lambda self, items : (TaskStep.SUBTASK,float(items[0][:]),items[1])
     remark = lambda self, items : (TaskStep.REMARK, None, items[0])
     startdate = lambda self, items : ("starts_after", items[0])
     enddate = lambda self, items : ("ends_before", items[0])
