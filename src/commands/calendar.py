@@ -199,4 +199,3 @@ class CalendarCommands(commands.Cog):
  
 ############################## END SLASH COMMANDS ##############################
 
-print("Loaded calendar.py")

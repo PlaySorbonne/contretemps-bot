@@ -187,11 +187,13 @@ class CalendarApiLink:
                     calendarId=cal,
                     timeMax=before.isoformat()+'Z',
                     singleEvents=True,
+                    timeZone="Etc/UTC"
                    ).execute()
         while 'nextPageToken' in resp:
             resp = self.__c.events().list(
                 pageToken = resp['nextPageToken'],
                 calendarId = cal,
+                timeZone="Etc/UTC",
                 singleEvents=True
             ).execute()
         self.__watched_cals[cal] = {
@@ -222,7 +224,8 @@ class CalendarApiLink:
                 timeMin=now,
                 timeMax=until,
                 singleEvents=True,
-                orderBy='startTime'
+                orderBy='startTime',
+                timeZone="Etc/UTC"
             ).execute().get('items')
         )
         return res
@@ -237,7 +240,8 @@ class CalendarApiLink:
                 timeMin=start,
                 timeMax=end,
                 singleEvents=True,
-                orderBy='startTime'
+                orderBy='startTime',
+                timeZone="Etc/UTC"
             ).execute().get('items')
         )
         return res
@@ -256,20 +260,22 @@ class CalendarApiLink:
               'calendarId':cal,
               'singleEvents':True,
               'syncToken':self.__watched_cals[cal]['tok'],
-              'showDeleted':True
+              'showDeleted':True,
+              'timeZone' : "Etc/UTC"
             }
             try:
                 resp = self.__c.events().list(**args).execute()
             except HttpError:
                 args.pop('syncToken')
-                resp = self.__c.events().list(**args)
+                resp = self.__c.events().list(**args).execute()
             newevnts = resp.get('items')
             while 'nextPageToken' in resp:
                 resp = self.__c.events().list(
                     calendarId = cal,
                     singleEvents = True, 
                     showDeleted = True,
-                    pageToken = resp['nextPageToken']
+                    pageToken = resp['nextPageToken'],
+                    timeZone = "Etc/UTC"
                 ).execute()
                 newevnts += resp.get('items')
             self.__watched_cals[cal]['tok'] = resp['nextSyncToken']

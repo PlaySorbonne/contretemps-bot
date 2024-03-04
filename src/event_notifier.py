@@ -367,10 +367,10 @@ class EventNotifier:
         for e in events: # TODO : Handle(or just ignore) multi-day events
             regular = 'dateTime' in e['start']
             date_field = 'dateTime' if regular else 'date'
-            day = datetime.datetime.fromisoformat(e['start'][date_field])
+            day = datetime.datetime.fromisoformat(e['start'][date_field][:-1])
             day = day.replace(hour=0, minute=0, second=0, microsecond=0, tzinfo=UTC)
-            start = datetime.datetime.fromisoformat(e['start'][date_field]).replace(tzinfo=UTC)
-            end = datetime.datetime.fromisoformat(e['end'][date_field]).replace(tzinfo=UTC)
+            start = datetime.datetime.fromisoformat(e['start'][date_field][:-1]).replace(tzinfo=UTC)
+            end = datetime.datetime.fromisoformat(e['end'][date_field][:-1]).replace(tzinfo=UTC)
             if regular :
                 self._add_embed_event(e, start, end, day, regular, l)
             else :
@@ -411,7 +411,7 @@ class EventNotifier:
     
     def _add_embed_event(self, e, start, end, day, regular, l, k=None, n=None):
         value = {
-            'title': e['summary'],
+            'title': e.get('summary') or '',
             'start': start,
             'end': end,
             'color' : ':blue_square:' if regular else ':red_square:',
@@ -551,7 +551,7 @@ class EventNotificationEmbed(Embed):
           'del': "\U0001f303  An event was deleted",
           'mod': "\U0001f308  An event was modified"
         }[change_type]
-        title = event['summary']
+        title = event.get('summary') or ''
         try:
             desc = event['description']
         except KeyError:
@@ -567,12 +567,12 @@ class EventNotificationEmbed(Embed):
               value = loc
             ))
         if 'dateTime' in event['start']:
-            st = datetime.datetime.fromisoformat(event['start']['dateTime'])
-            nd = datetime.datetime.fromisoformat(event['end']['dateTime'])
+            st = datetime.datetime.fromisoformat(event['start']['dateTime'][:-1])
+            nd = datetime.datetime.fromisoformat(event['end']['dateTime'][:-1])
         else:
             #print("did not find dateTime field in envent", event['summary'], " start time")
-            st = datetime.datetime.fromisoformat(event['start']['date'])
-            nd = datetime.datetime.fromisoformat(event['end']['date'])
+            st = datetime.datetime.fromisoformat(event['start']['date'][:-1])
+            nd = datetime.datetime.fromisoformat(event['end']['date'][:-1])
         fields.append(EmbedField(name='Scheduled for', value=f'<t:{int(st.timestamp())}:F>', inline=True))
         delta = str(nd-st).split('.')[0]
         fields.append(EmbedField(name='Duration:', value=delta, inline=True))
