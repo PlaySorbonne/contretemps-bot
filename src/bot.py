@@ -18,35 +18,9 @@
 
 import discord
 
-from discord.ext import tasks, pages
-
-from event_notifier import EventNotifier
-from google_calendar import GoogleAuthentifier
-
-import datetime
-import dateutil
-import functools
-
-
-################################ BOT SETUP ####################################
 bot = discord.Bot()
-
 server_notifiers = dict() # Maps each server (using its id) to an EventNotifier
 
-# Setting up an EventNotifier for each server the bot is a member of
-@bot.event
-async def on_ready():
-    async for guild in bot.fetch_guilds(limit=150):
-        server_notifiers[guild.id] = EventNotifier(guild.id, guild.name, bot)
-
-@bot.event
-async def on_guild_join(guild):
-    server_notifiers[guild.id] = EventNotifier(guild.id, guild.name, bot)
-
-@bot.event
-async def on_guild_remove(guild):
-    pass # do we delete the guild configuration or just keep it ?
-############################## END BOT SETUP ##################################
 
 
 

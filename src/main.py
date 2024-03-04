@@ -16,11 +16,30 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 
-from bot import bot
-from commands import calendar
+from bot import bot, server_notifiers
+from commands import calendar, tasker
+from event_notifier import EventNotifier
+from commands.interactions.tasker import ChooseTaskView
 
+################################ BOT SETUP ####################################
+
+# Setting up an EventNotifier for each server the bot is a member of
+@bot.event
+async def on_ready():
+    async for guild in bot.fetch_guilds(limit=150):
+        server_notifiers[guild.id] = EventNotifier(guild.id, guild.name, bot)
+    bot.add_view(ChooseTaskView())
+@bot.event
+async def on_guild_join(guild):
+    server_notifiers[guild.id] = EventNotifier(guild.id, guild.name, bot)
+
+@bot.event
+async def on_guild_remove(guild):
+    pass # do we delete the guild configuration or just keep it ?
 
 bot.add_cog(calendar.CalendarCommands(bot))
+bot.add_cog(tasker.TaskerCommands(bot))
+############################## END BOT SETUP ##################################
 
 ################################ BOT LAUNCH ###################################
 token = open('.discord_token', 'r').read()
