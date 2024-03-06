@@ -22,6 +22,7 @@ from sqlalchemy.orm import Session
 from tasker import tasker_core
 from database import engine
 from database.tasker import TaskParticipant, TaskInterested, TaskVeteran
+from .common import DangerForm
 
 
 class ChooseTaskView(View): #TODO SANITIZE ALL USER INPUT
@@ -30,8 +31,20 @@ class ChooseTaskView(View): #TODO SANITIZE ALL USER INPUT
   
   async def common_choice_declaration(self, interaction, Kind):
     with Session(engine) as s, s.begin():
-     task = tasker_core.find_task_by_thread(str(interaction.channel_id), s=s)
-     await tasker_core.add_task_contributor(Kind, task, str(interaction.user.id),s=s)
+     user_id, channel_id = interaction.user.id, interaction.channel_id
+     task = tasker_core.find_task_by_thread(str(channel_id), s=s)
+     if tasker_core.is_task_contributor(Kind, str(user_id), task, s=s):
+       async def act():
+        await tasker_core.remove_task_contributor(Kind, task, str(user_id))
+       what = {TaskParticipant:"participant.e", TaskInterested:"interessé.e",
+               TaskVeteran:"pouvant aider"}
+       return await interaction.response.send_message(
+         content=(f'{interaction.user.mention}, confirmes-tu vouloir ne plus être '
+                 +f'considéré.e comme {what[Kind]} pour la tâche "{task.title}" ?'),
+         view=DangerForm(act),
+         ephemeral=True
+       )
+     await tasker_core.add_task_contributor(Kind, task, str(user_id),s=s)
     await interaction.response.send_message("Done!", ephemeral=True) #TODO better message
   
   #TODO emojis :-)

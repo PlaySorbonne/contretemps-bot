@@ -100,6 +100,11 @@ class Contributor(Base):
         back_populates='interested', secondary='task_interested')
     current_tasks : Mapped[List[Task]] = relationship(
         back_populates='active', secondary='task_participant')
+    
+    def tasks(self, Kind):
+      return { TaskInterested: self.interesting_tasks,
+               TaskParticipant: self.current_tasks,
+               TaskVeteran: self.mastered_tasks }[Kind]
 
 class TaskLog(Base):
     __tablename__ = 'task_log'

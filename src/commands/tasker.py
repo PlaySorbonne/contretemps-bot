@@ -37,6 +37,7 @@ class TaskerCommands(commands.Cog):
     self.bot = bot
     self._last_member = None
   
+  
   @commands.slash_command(description='Create a new Project')
   @access_control(2)
   async def create_project(self, ctx, title, category: CategoryChannel):
@@ -45,6 +46,7 @@ class TaskerCommands(commands.Cog):
     await ctx.respond(content=f'Création du projet "{title}"...', ephemeral=True)
     project, forum = await tasker_core.create_project(ctx.guild, title, category)
     await ctx.edit(content="Projet créé avec succès, forum: "+forum.mention)
+  
   
   @commands.slash_command(description='Set a remainder frequency for a Project')
   @access_control(2)
@@ -71,6 +73,7 @@ class TaskerCommands(commands.Cog):
       else:
         await act()
   
+  
   @commands.slash_command(description='Add a mention/role to a project')
   @access_control(2)
   async def add_project_role(
@@ -83,7 +86,8 @@ class TaskerCommands(commands.Cog):
       return await ctx.respond(content=f'Le projet "{projet}" n\'existe pas.', ephemeral=True)
     tasker_core.add_project_role(str(ctx.guild.id), project, role.mention)
     await ctx.respond(f"Role {role.mention} ajouté.", ephemeral=True)
-
+  
+  
   @commands.slash_command(description='Remove a mention/role from a project')
   @access_control(2)
   async def remove_project_role(
@@ -96,6 +100,7 @@ class TaskerCommands(commands.Cog):
       return await ctx.respond(content=f'Le projet "{projet}" n\'existe pas.', ephemeral=True)
     tasker_core.remove_project_role(str(ctx.guild.id), project, role.mention)
     await ctx.respond(f"Role {role.mention} supprimé.", ephemeral=True)
+  
   
   @commands.slash_command(description='Add many tasks to a project from a file')
   @access_control(2)

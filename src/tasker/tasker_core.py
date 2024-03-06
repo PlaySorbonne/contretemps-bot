@@ -130,6 +130,12 @@ def find_task_by_thread(thread_id, s=None):
   task = s.scalars(select(Task).filter_by(thread_id=thread_id))
   return task.first()
 
+def is_task_contributor(Kind, member_id, task, s=None):
+  if s is None:
+   with Session(engine) as s, s.begin():
+    return is_task_contributor(Kind, member_id, task, s)
+  return s.get(Kind, (task.project_id, task.title, str(member_id))) is not None
+
 async def add_task_contributor(Kind, task, member_id, s=None): #TODO log new contributor
   if s is None:
    with Session(engine) as s, s.begin():
@@ -141,6 +147,15 @@ async def add_task_contributor(Kind, task, member_id, s=None): #TODO log new con
     interested = s.get(TaskInterested, (task.project_id, task.title, str(member_id)))
     if interested is not None:
       s.delete(interested)
+  await update_task_messages(task, s=s)
+
+async def remove_task_contributor(Kind, task, member_id, s=None):
+  if s is None:
+   with Session(engine) as s, s.begin():
+     s.add(task)
+     return await remove_task_contributor(Kind, task, member_id, s=s)
+  contributor = s.get(Contributor, (str(member_id), task.project_id))
+  contributor.tasks(Kind).remove(task)
   await update_task_messages(task, s=s)
 
 @tasks.loop(seconds=10)#TODO : 60)
