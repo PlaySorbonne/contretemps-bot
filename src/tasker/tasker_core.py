@@ -63,9 +63,9 @@ def remove_reminder(guild_id, project_name):
 def set_reminder(guild_id, project_name, reminder):
   with Session(engine) as s, s.begin():
     project = _get_project(s, guild_id, project_name)
-    project.reminder_frequency = reminder
+    project.reminder_frequency = int(reminder.total_seconds())
     now = datetime.utcnow()
-    then = now + timedelta(days=reminder)
+    then = now + reminder
     choices = int(then.timestamp() - now.timestamp())
     for task in project.tasks:
       random_wait = randint(1, choices)
@@ -98,7 +98,7 @@ async def create_task(guild_id, project_name, task, s=None):
   task.thread_id = str(thread.id)
   if proj.reminder_frequency:
     now = datetime.utcnow()
-    end = now + timedelta(days=proj.reminder_frequency)
+    end = now + timedelta(seconds=proj.reminder_frequency)
     choices = int(end.timestamp()-now.timestamp())
     checkpoint = (now+timedelta(seconds=randint(choices/2, choices)))
     task.next_recall = checkpoint.isoformat()
@@ -156,9 +156,9 @@ async def do_reminders():
          user = await bot.fetch_user(int(active.member_id))
          contents = make_reminder_message(task, active, s)
          await user.send(**contents)
-       last = now + timedelta(days=int(project.reminder_frequency))
+       last = now + timedelta(seconds=int(project.reminder_frequency))
        choices = (last.timestamp() - now.timestamp())
-       new_checkpoint = now + timedelta(seconds=randint(choices/2, choices))
+       new_checkpoint = now + timedelta(seconds=randint(choices//2, choices))
        task.next_recall = new_checkpoint.isoformat()
 
         

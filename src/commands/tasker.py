@@ -16,6 +16,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 from typing import Optional
+from datetime import timedelta
 
 from discord.ext import tasks, pages, commands
 from discord.utils import basic_autocomplete as autocomp
@@ -23,6 +24,7 @@ from discord import CategoryChannel, Role, Option, Attachment
 
 from .interactions.common import DangerForm
 from .interactions.common import access_control
+from .common import TimeDelta
 
 from tasker import tasker_core
 from tasker.task_text_input import tasks_parser
@@ -50,16 +52,24 @@ class TaskerCommands(commands.Cog):
     self,
     ctx,
     project : Option(str, autocomplete=autocomp(get_projects)),
-    reminder : Option(int, description="Remind active contributors each ... days")
+    reminder : TimeDelta
   ):
     if not tasker_core.check_project_exists(str(ctx.guild.id), project):
       return await ctx.respond(content=f'Le projet "{projet}" n\'existe pas.', ephemeral=True)
-    if reminder <= 0:
+    if reminder == timedelta(seconds=0):
       tasker_core.remove_reminder(str(ctx.guild.id), project)
       ctx.respond(content='Rappels supprimés pour le projet "{project}"', ephemeral=True) 
+    elif type(reminder) is commands.BadArgument:
+      await ctx.respond(content=f'Échec de la commande. {reminder} est un mauvais argument. Exemple de bon format : "3 days, 1 hours, 7 minutes"', ephemeral=True)
     else:
-      tasker_core.set_reminder(str(ctx.guild.id), project, reminder)
-      await ctx.respond(content=f'Fréquence de rappels mise à {reminder}j pour le projet "{project}"', ephemeral=True)
+      async def act():
+        tasker_core.set_reminder(str(ctx.guild.id), project, reminder)
+        await ctx.respond(content=f'Fréquence de rappels mise à {reminder} pour le projet "{project}"', ephemeral=True)
+      if reminder <= timedelta(hours=1):
+        await ctx.respond(content=f"# ATTENTION, DÉLAI DE RAPPEL MIS À SEULEMENT {reminder}. RISQUE DE SPAM.",
+                          view=DangerForm(act), ephemeral=True)
+      else:
+        await act()
   
   @commands.slash_command(description='Add a mention/role to a project')
   @access_control(2)
