@@ -92,6 +92,7 @@ class Contributor(Base):
     project_id = mc(FK(Project.project_id), primary_key=True)
     no_dms : Mapped[int] = mc(default=0)
     no_mention : Mapped[int] = mc(default=0)
+    project_admin : Mapped[int] = mc(default=0)
     
     project : Mapped[Project] = relationship(back_populates='contributors')
     mastered_tasks : Mapped[List[Task]] = relationship(

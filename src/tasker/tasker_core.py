@@ -33,15 +33,17 @@ from commands.interactions.tasker import ChooseTaskView
 
 def _get_project(s, guild_id, project_name):
   return (s.scalars(select(Project)
-          .filter_by(project_name=project_name, server_id=guild_id))
-          .one())
+          .filter_by(project_name=project_name, server_id=str(guild_id)))
+          .first())
 
-async def create_project(guild, name, category):
+async def create_project(guild, name, category, who):
   with Session(engine) as s, s.begin():
     guild_object = get_or_create(s, Server, server_id=str(guild.id))
     forum = await guild.create_forum_channel(name=name, category=category)
     new_project = Project(forum_id = str(forum.id), project_name=name)
     guild_object.projects.append(new_project)
+    user = Contributor(member_id=str(who), project_admin=1)
+    project.contributors.append(user)
     return new_project, forum
 
 def get_guild_projects(guild_id):
@@ -52,6 +54,20 @@ def get_guild_projects(guild_id):
 def check_project_exists(guild_id, project_name):
   with Session(engine) as s:
     return None is not _get_project(s, guild_id, project_name)
+
+def is_project_admin(user_id, guild_id, project):
+  with Session(engine) as s:
+    p = _get_project(s, guild_id, project)
+    u = s.get(Contributor, (str(user_id), p.project_id))
+    return u is not None and u.project_admin 
+
+def set_project_admin(guild_id, project_name, user_id, to):
+  with Session(engine) as s, s.begin():
+    p = _get_project(s, guild_id, project_name)
+    user = get_or_create(s, Contributor,
+                         project_id=p.project_id, member_id=str(user_id))
+    user.project_admin = to
+    p.contributors.append(user)
 
 def remove_reminder(guild_id, project_name):
   with Session(engine) as s, s.begin():
@@ -85,11 +101,15 @@ def remove_project_role(guild_id, project_name, role):
     roles.discard(role)
     proj.project_roles = ';'.join(roles)
 
+class TaskAlreadyExists(Exception):
+  pass
 async def create_task(guild_id, project_name, task, s=None):
   if s is None:
    with Session(engine) as s, s.begin():
     return await create_task(guild_id, project_name, task, s)
   proj = _get_project(s, guild_id, project_name) #TODO : insert and commit before publishing messages 
+  proj.tasks.append(task)
+  s.flush()
   forum = await bot.fetch_channel(int(proj.forum_id))
   thread = await forum.create_thread(name=task.title, content='placeholder')
   desc_message = await thread.send(content='placeholder')
@@ -98,12 +118,11 @@ async def create_task(guild_id, project_name, task, s=None):
   task.thread_id = str(thread.id)
   if proj.reminder_frequency:
     now = datetime.utcnow()
-    end = now + timedelta(seconds=proj.reminder_frequency)
+    end = now + timedelta(seconds=int(proj.reminder_frequency))
     choices = int(end.timestamp()-now.timestamp())
     checkpoint = (now+timedelta(seconds=randint(choices/2, choices)))
     task.next_recall = checkpoint.isoformat()
     
-  proj.tasks.append(task)
   await update_task_messages(task, s, thread.starting_message, desc_message)
 
 async def update_task_messages(task, s=None, main=None, sec=None):
@@ -120,6 +139,12 @@ async def update_task_messages(task, s=None, main=None, sec=None):
 
 async def bulk_create_tasks(guild_id, project_name, tasks):
   with Session(engine, autoflush=False) as s, s.begin():
+    p = _get_project(s, guild_id, project_name)
+    for t in tasks:
+      if s.scalars(
+        select(Task).filter_by(project_id=p.project_id, title=t.title)
+      ).first() is not None:
+        raise TaskAlreadyExists(t.title)
     for task in tasks:
       await create_task(guild_id, project_name, task, s)
 
