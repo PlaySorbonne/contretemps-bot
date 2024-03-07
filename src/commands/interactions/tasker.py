@@ -21,11 +21,12 @@ from sqlalchemy.orm import Session
 
 from tasker import tasker_core
 from database import engine
-from database.tasker import TaskParticipant, TaskInterested, TaskVeteran
-from .common import DangerForm
+from database.tools import get_or_create
+from database.tasker import *
+from .common import DangerForm, ActionModal
 
 
-class ChooseTaskView(View): #TODO SANITIZE ALL USER INPUT
+class TaskInteractView(View): #TODO SANITIZE ALL USER INPUT
   def __init__(self):
     super().__init__(timeout=None)
   
@@ -57,5 +58,39 @@ class ChooseTaskView(View): #TODO SANITIZE ALL USER INPUT
   @button(label='M\'y connais', custom_id='veteran_task_button', style=ButtonStyle.primary)
   async def veteran_callback(self, button, interaction):
     await self.common_choice_declaration(interaction, TaskVeteran)
-
-
+  
+  @button(
+    label='Écrire dans le Journal de Bord',
+    custom_id='log_button',
+    style=ButtonStyle.gray,
+    row=1
+  )
+  async def log_callback(self, button, interaction):
+      s = Session(engine)
+      thread, user = str(interaction.channel_id), str(interaction.user.id)
+      task = tasker_core.find_task_by_thread(thread, s)
+      who = get_or_create(
+       s, Contributor,
+       member_id=user, project_id=task.project_id
+      )
+      if (
+        task in who.current_tasks or task in who.interesting_tasks
+        or who.project_admin
+      ):
+        async def cback(self2, interaction2):
+          message = self2.children[0].value
+          await tasker_core.task_user_log(task, who, message, s=s)
+          s.commit()
+          s.close()
+          await interaction2.response.send_message(f'Bravo :]', ephemeral=True)
+        modal = ActionModal(
+          "Entrez votre message dans le journal.",
+           cback, "LOG"
+        )
+        await interaction.response.send_modal(modal)
+      else:
+        await interaction.response.send_message(
+          "Seule un.e admin/une personne qui participe ou aide à la tâche"
+          " peut écrire dans le journal",
+          ephemeral=True
+        )

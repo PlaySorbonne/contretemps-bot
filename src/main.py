@@ -19,7 +19,7 @@
 from bot import bot, server_notifiers
 from commands import calendar, tasker
 from event_notifier import EventNotifier
-from commands.interactions.tasker import ChooseTaskView
+from commands.interactions.tasker import TaskInteractView
 
 ################################ BOT SETUP ####################################
 
@@ -28,7 +28,7 @@ from commands.interactions.tasker import ChooseTaskView
 async def on_ready():
     async for guild in bot.fetch_guilds(limit=150):
         server_notifiers[guild.id] = EventNotifier(guild.id, guild.name, bot)
-    bot.add_view(ChooseTaskView())
+    bot.add_view(TaskInteractView())
 @bot.event
 async def on_guild_join(guild):
     server_notifiers[guild.id] = EventNotifier(guild.id, guild.name, bot)

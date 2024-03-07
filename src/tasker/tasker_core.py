@@ -26,7 +26,7 @@ from database.base import ServerConnexion as Server
 from database.tools import get_or_create
 from database import engine
 from bot import bot
-from commands.interactions.tasker import ChooseTaskView
+from commands.interactions.tasker import TaskInteractView
 
 #TODO custom timedelta dates type in sqlalchemy
 #TODO reminder frequency better granurarity (now just in days)
@@ -36,6 +36,13 @@ def _get_project(s, guild_id, project_name):
           .filter_by(project_name=project_name, server_id=str(guild_id)))
           .first())
 
+def roll_reminder_time(freq, rho=.5):
+  now = datetime.utcnow()
+  then = now+timedelta(seconds=int(freq))
+  choices = then.timestamp() - now.timestamp()
+  choose = randint(rho*choices, choices)
+  return (now+timedelta(seconds=choose)).isoformat()
+
 async def create_project(guild, name, category, who):
   with Session(engine) as s, s.begin():
     guild_object = get_or_create(s, Server, server_id=str(guild.id))
@@ -43,7 +50,7 @@ async def create_project(guild, name, category, who):
     new_project = Project(forum_id = str(forum.id), project_name=name)
     guild_object.projects.append(new_project)
     user = Contributor(member_id=str(who), project_admin=1)
-    project.contributors.append(user)
+    new_project.contributors.append(user)
     return new_project, forum
 
 def get_guild_projects(guild_id):
@@ -109,7 +116,6 @@ async def create_task(guild_id, project_name, task, s=None):
     return await create_task(guild_id, project_name, task, s)
   proj = _get_project(s, guild_id, project_name) #TODO : insert and commit before publishing messages 
   proj.tasks.append(task)
-  s.flush()
   forum = await bot.fetch_channel(int(proj.forum_id))
   thread = await forum.create_thread(name=task.title, content='placeholder')
   desc_message = await thread.send(content='placeholder')
@@ -183,6 +189,20 @@ async def remove_task_contributor(Kind, task, member_id, s=None):
   contributor.tasks(Kind).remove(task)
   await update_task_messages(task, s=s)
 
+async def task_user_log(task, contributor, message, s):
+  log = TaskLog(
+    project_id=task.project_id,
+    task_title=task.title,
+    timestamp=datetime.utcnow().isoformat(),
+    member_id=contributor.member_id,
+    log_message=message,
+    log_type = TaskLog.USER_LOG
+  )
+  freq = task.project.reminder_frequency
+  if freq:
+    task.next_recall = roll_reminder_time(freq)
+  s.add(log)
+
 @tasks.loop(seconds=10)#TODO : 60)
 async def do_reminders():
  with Session(engine) as s, s.begin():
@@ -204,7 +224,7 @@ async def do_reminders():
         
 
 def make_main_task_message(task, s):
-  return {'content': 'TODO: MAIN TASK MESSSAGE AND STUFF', 'view':ChooseTaskView()}
+  return {'content': 'TODO: MAIN TASK MESSSAGE AND STUFF', 'view':TaskInteractView()}
 def make_sec_task_message(task, s):
   return {'content': 'TODO: SECONDARY TASK MESSAGE AND STUFF'}
 def make_reminder_message(task, user, s):
