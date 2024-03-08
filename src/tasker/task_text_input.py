@@ -17,9 +17,6 @@
 """
 Parser module allowing to parse a textual presentation of a list of
 tasks and transforming it to a list of database.tasker.Task object
-Grammar (in EBNF):
-task_list ::= task*
-task :== 'TASK' task_name '{'  
 """
 from database.tasker import Task, TaskStep, TaskLog, TaskDependency
 from lark import Lark, Transformer
@@ -87,7 +84,7 @@ class TaskMaker(Transformer):
       return ('steps',[TaskStep(kind=k, step_number=n, step_description=s)
                        for (k,n,s) in items])
     def dependencies(self, items):
-      return ("deps", items)        
+      return ("deps", items)
     
     def task(self, items):
       ref, deps, steps, attrs = None, [], [], dict()
@@ -99,7 +96,7 @@ class TaskMaker(Transformer):
       new_task = Task(**attrs)
       new_task.steps = steps
       if ref is None: ref = attrs['title'] #TODO : check title exists for all tasks and emit useful error message to user
-      return (new_task, ref, deps) 
+      return (new_task, ref, deps)
     
     def start(self, items):
       tasks = dict()
