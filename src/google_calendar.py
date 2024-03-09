@@ -266,6 +266,7 @@ class CalendarApiLink:
             try:
                 resp = self.__c.events().list(**args).execute()
             except HttpError:
+                print(f"[CalendarApiLink] syncToken expired on {datetime.utcnow()} for calendar {cal}")
                 args.pop('syncToken')
                 resp = self.__c.events().list(**args).execute()
             newevnts = resp.get('items')
@@ -287,6 +288,10 @@ class CalendarApiLink:
                     evlist[ev['id']] = ev
             if newevnts:
                 modified[cal] = newevnts
+        updates_numbeer = sum(sum(cal) for cal in modified.values())
+        if sum(sum(cal) for cal in modified.values()) > 10:
+          print(f"[CalendarApiLink] Too many updated events ({updates_numbeer})")
+          return
         if (self.__callback is not None):
             await self.__callback(modified)
 
