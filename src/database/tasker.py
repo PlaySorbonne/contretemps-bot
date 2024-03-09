@@ -33,6 +33,12 @@ class Project(Base):
     forum_id : Mapped[NULL[str]]
     project_roles : Mapped[str] = mc(default='')
     reminder_frequency : Mapped[NULL[str]]
+    main_thread: Mapped[NULL[str]]
+    main_message: Mapped[NULL[str]]
+    sec_messages: Mapped[NULL[str]]
+    main_template: Mapped[NULL[str]]
+    sec_template: Mapped[NULL[str]]
+    reminder_template: Mapped[NULL[str]]
     
     server : Mapped['ServerConnexion'] = relationship(back_populates='projects')
     tasks : Mapped[List['Task']] = relationship(back_populates='project')

@@ -19,7 +19,9 @@ from sqlalchemy.orm import Session
 from sqlalchemy import select
 from datetime import datetime, timedelta
 from random import randint
+import asyncio
 from discord.ext import tasks
+from discord import NotFound
 
 from database.tasker import *
 from database.base import ServerConnexion as Server
@@ -27,6 +29,8 @@ from database.tools import get_or_create
 from database import engine
 from bot import bot
 from commands.interactions.tasker import TaskInteractView
+from template import parser as template_parser
+from lark.exceptions import UnexpectedInput
 
 #TODO custom timedelta dates type in sqlalchemy
 #TODO reminder frequency better granurarity (now just in days)
@@ -42,6 +46,19 @@ def roll_reminder_time(freq, rho=.5):
   choices = then.timestamp() - now.timestamp()
   choose = randint(rho*choices, choices)
   return (now+timedelta(seconds=choose)).isoformat()
+
+async def create_empty_messages(channel, n=10):
+  message_creations = (channel.send(content='\u200E') for _ in range(n))
+  desc_message = await asyncio.gather(*message_creations)
+  desc_message.sort(key=lambda x: x.created_at)
+  return desc_message
+
+class BadTemplateFormat(Exception):
+  pass
+class TemplateInterpreterError(Exception):
+  pass
+
+
 
 async def create_project(guild, name, category, who):
   with Session(engine) as s, s.begin():
@@ -118,9 +135,10 @@ async def create_task(guild_id, project_name, task, s=None):
   proj.tasks.append(task)
   forum = await bot.fetch_channel(int(proj.forum_id))
   thread = await forum.create_thread(name=task.title, content='placeholder')
-  desc_message = await thread.send(content='placeholder')
+  desc_message = await create_empty_messages(thread)
+  #desc_message = await thread.send(content='placeholder')
   task.main_message_id = str(thread.starting_message.id)
-  task.sec_message_id = str(desc_message.id)
+  task.sec_message_id = ';'.join(str(x) for x in desc_message)
   task.thread_id = str(thread.id)
   if proj.reminder_frequency:
     now = datetime.utcnow()
@@ -129,7 +147,7 @@ async def create_task(guild_id, project_name, task, s=None):
     checkpoint = (now+timedelta(seconds=randint(choices/2, choices)))
     task.next_recall = checkpoint.isoformat()
     
-  await update_task_messages(task, s, thread.starting_message, desc_message)
+  await update_task_messages(task, s, thread.starting_message, desc_message[0]) #TODO handle multiple messages
 
 async def update_task_messages(task, s=None, main=None, sec=None):
   if s is None:
@@ -137,7 +155,8 @@ async def update_task_messages(task, s=None, main=None, sec=None):
     s.add(task)
     return await update_task_messages(task, s, main, sec)
   if main is None: main = await (await bot.fetch_channel(int(task.thread_id))).fetch_message(int(task.main_message_id))
-  if sec is None: sec = await (await bot.fetch_channel(int(task.thread_id))).fetch_message(int(task.sec_message_id))
+  if sec is None:
+    sec = await (await bot.fetch_channel(int(task.thread_id))).fetch_message(int(task.sec_message_id.split(';')[0]))
   main_message_components = make_main_task_message(task, s)
   sec_message_components = make_sec_task_message(task, s)
   await main.edit(**main_message_components)
@@ -153,6 +172,71 @@ async def bulk_create_tasks(guild_id, project_name, tasks):
         raise TaskAlreadyExists(t.title)
     for task in tasks:
       await create_task(guild_id, project_name, task, s)
+
+async def has_main_thread(guild_id, project_name):
+  with Session(engine) as s, s.begin():
+    p = _get_project(s, guild_id, project_name)
+    t = p.main_thread
+    try:
+      thread = await bot.fetch_channel(int(t)) if t else None
+    except NotFound:
+      p.main_thread = None
+      return None
+    return thread
+
+async def publish_main_thread(
+  guild_id,
+  project_name,
+  title,
+  main_template=None,
+  sec_template=None
+):
+  with Session(engine) as s, s.begin():
+    proj = _get_project(s, guild_id, project_name)
+    forum = await bot.fetch_channel(int(proj.forum_id))
+    thread = await has_main_thread(guild_id, project_name)
+    if thread:
+      message = proj.main_message
+      sec_messages = [await thread.fetch_message(int(x)) for x in proj.sec_messages.split(';')]
+      await thread.edit(name=title)
+    else:
+      thread = proj.main_thread or await forum.create_thread(name=title, content='placeholder')
+      message = thread.starting_message.id
+      sec_messages = await create_empty_messages(thread)
+    await thread.edit(pinned=True)
+    proj.main_thread = str(thread.id)
+    proj.main_template=None
+    proj.sec_template=None
+    proj.main_message = message
+    proj.sec_messages = ';'.join(str(x.id) for x in sec_messages)
+    await update_main_thread(proj, s, thread, message, sec_messages)
+    return thread
+    
+async def remove_main_thread(
+  guild_id,
+  project_name,
+  delete=False
+):
+  with Session(engine) as s, s.begin():
+    proj = _get_project(s, guild_id, project_name)
+    if proj.main_thread:
+      if delete:
+        try:
+          t = await bot.fetch_channel(int(proj.main_thread))
+          await t.delete()
+        except NotFound:
+          pass
+      proj.main_thread = proj.main_message = proj.sec_messages = None
+      proj.main_template = proj.sec_template = None
+
+async def update_main_thread(
+  proj,
+  s=None,
+  thread=None,
+  main_message=None,
+  sec_messages=None
+):
+  pass
 
 def find_task_by_thread(thread_id, s=None):
   if s is None:
@@ -202,6 +286,17 @@ async def task_user_log(task, contributor, message, s):
   if freq:
     task.next_recall = roll_reminder_time(freq)
   s.add(log)
+
+async def validate_template(guild_id, project_name, template, context=None):
+  with Session(engine) as s:
+    project = _get_project(s, guild_id, project_name)
+    try:
+      res = template_parser.parse(template)
+    except UnexpectedInput as e:
+      raise BadTemplateFormat(e.get_context(template))
+    return
+    #TODO: try to load the template (like execute the msg generating function, without the message publishing function, and return the message to the caller)
+    #TODO: actually maybe just replace this function alltogether with the message generating function, that either generates the message or throws the appropriate exceptions!
 
 @tasks.loop(seconds=10)#TODO : 60)
 async def do_reminders():

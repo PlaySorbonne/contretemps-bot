@@ -58,7 +58,36 @@ def project_checks(admin=True):
           ephemeral=True)
       return await f(self, ctx, *args, **kwargs)
     return new_f
-  return dec   
+  return dec
+
+def file_checks(*file_args, max_file_size=10*1024*1024):
+  def dec(f):
+    @wraps(f)
+    async def new_f(self, ctx: ApplicationContext, *args, **kwargs):
+      read_files = {}
+      for kwarg in file_args: 
+        if kwarg not in kwargs:
+          await ctx.respond(f"Erreur interne dans la commande.", ephemeral=True)
+          return
+        if kwargs[kwarg] is not None:
+          file = kwargs[kwarg]
+          if file.size >= max_file_size:
+            return await ctx.respond(
+              f'Le fichier {file.filename} est trop grand.'
+             +f'Taille maximale: {max_file_size/1024/1024}MB',
+              ephemeral=True
+            )
+          try :
+            read_files[kwarg] = (await file.read()).decode() #TODO handle errors
+          except Exception:
+            return await ctx.respond(
+              "Erreur inconnue lors de la lecture du fichier.",
+              ephemeral=True
+            )
+      kwargs.update(read_files)
+      return await f(self, ctx, *args, **kwargs)
+    return new_f
+  return dec
 
 
 class TaskerCommands(commands.Cog):
@@ -127,18 +156,17 @@ class TaskerCommands(commands.Cog):
   
   @commands.slash_command(description='Add many tasks to a project from a file')
   @project_checks(admin=True)
+  @file_checks('file')
   async def bulk_add_tasks(
     self,
     ctx,
     project : Option(str, autocomplete=autocomp(get_projects)),
     file : Attachment
   ):
-    if file.size >= 10*1024*1024:
-      return await ctx.respond(content=f'Le fichier {file.filename} est trop grand. Taille maximale: 10MB', ephemeral=True)
     try :
-      tasks = tasks_parser.parse((await file.read()).decode()) #TODO handle errors
+      tasks = tasks_parser.parse(file) #TODO handle errors
     except Exception:
-      return await ctx.respond("Erreur inconnue lors de la lecture du fichier.", ephemeral=True)
+      return await ctx.respond("Erreur inconnue lors de l'analyse des tâches.", ephemeral=True)
     await ctx.defer(ephemeral=True)
     try:
       await tasker_core.bulk_create_tasks(str(ctx.guild.id), project, tasks)
@@ -158,4 +186,62 @@ class TaskerCommands(commands.Cog):
   ):
     tasker_core.set_project_admin(str(ctx.guild.id), project, user.id, to)
     await ctx.respond("Done.", ephemeral=True)
-    
+  
+  
+  @commands.slash_command(description='Make a main thread for a project')
+  @project_checks(admin=True)
+  @file_checks('main_template', 'secondary_template', max_file_size=1024*1024)
+  async def make_project_thread(self,
+    ctx,
+    project : Option(str, autocomplete=autocomp(get_projects)),
+    thread_title : Option(str, max_length=100),
+    main_template : Option(Attachment, default=None),
+    secondary_template: Option(Attachment, default=None),
+    replace : Option(bool, default=False, choices=[True, False])
+  ):
+    await ctx.defer(ephemeral=True)
+    thread = await tasker_core.has_main_thread(ctx.guild.id, project)
+    if thread and not replace:
+      return await ctx.respond(
+       f'Un thread principal ({thread.mention}) existe déjà '
+       +f'pour le projet {project}.\nUtilisez /remove_main_thread pour '
+       +f'dissocier le thread déjà présent ou mettez l\'option "replace" '
+       +f'à True dans cette commande pour modifier le thread déjà présent.',
+       ephemeral=True)
+    if (main_template is None):
+      res = await tasker_core.publish_main_thread(ctx.guild.id, project, thread_title)
+      return await ctx.respond(f"Done. {res.mention}")
+    if main_template is not None:
+      try:
+        await tasker_core.validate_template(ctx.guild.id, project, main_template)
+      except tasker_core.BadTemplateFormat as e:
+        return await ctx.respond(
+          f"Erreur dans la lecture du Template du message principal.\n"
+         +f"{e.args[0]}",
+          ephemeral= True
+        )
+    if secondary_template is not None:
+      try:
+        await tasker_core.validate_template(ctx.guild.id, project, sec_template)
+      except tasker_core.BadTemplateFormat as e:
+        return await ctx.respond(
+          f"Erreur dans la lecture du Template du message secondaire.\n"
+         +f"{e.args[0]}",
+          ephemeral=True
+        )
+    res = await tasker_core.publish_main_thread(
+      ctx.guild.id, project, thread_title,
+      main_template, secondary_template
+    )
+    return await ctx.respond(f'Fait. {res.mention}', ephemeral=True)
+  
+  @commands.slash_command(description='Remove a thread from a project')
+  @project_checks(admin=True)
+  async def remove_project_thread(self,
+    ctx,
+    project : Option(str, autocomplete=autocomp(get_projects)),
+    delete : Option(bool, default=False, choices=[False, True])
+  ):
+    await tasker_core.remove_main_thread(ctx.guild.id, project, delete)
+    await ctx.respond("Fait.", ephemeral=True)
+  
