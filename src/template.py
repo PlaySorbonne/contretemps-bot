@@ -42,18 +42,24 @@ template_grammar = r"""
           | value
           | foreach
           | ifelse
+          | let
     value: _OPEN_VAL _expr _CLOSE_VAL
-    _expr: _atomic | app
-    _atomic: ESCAPED_STRING | number | id
+    _expr: _atomic | app | list
+    _atomic: estring | number | id
     app: _expr _LPAR (_expr (_COMMA _expr)*)? _RPAR
-    ifelse: _OPEN_DIR _IF _expr _CLOSE_DIR [text] [else_] _endif
-    else_: _OPEN_DIR _ELSE _CLOSE_DIR [text]
+    list: _LB (_expr (_COMMA _expr)*)? _RB
+    ifelse: _OPEN_DIR _IF _expr _CLOSE_DIR _FORDELIM _block+ _ENDFORDELIM [else2_] _endif
+           |_OPEN_DIR _IF _expr _CLOSE_DIR text [else_] _endif
+    else_: _OPEN_DIR _ELSE _CLOSE_DIR text
+    else2_: _OPEN_DIR _ELSE _CLOSE_DIR _FORDELIM _block+ _ENDFORDELIM
     foreach: _OPEN_DIR _FOREACH id_tuple _IN _expr _CLOSE_DIR _FORDELIM [start] _ENDFORDELIM
+    let: _OPEN_DIR _LET ID _EQ _expr _CLOSE_DIR
     _endif: _OPEN_DIR _ENDIF _CLOSE_DIR
-    id_tuple: _LPAR ID (_COMMA ID)* _RPAR
+    id_tuple: _LPAR ID (_COMMA ID)* _RPAR | ID
     text: LETTER+
     id: ID
     number: NUMBER
+    estring: ESCAPED_STRING
     
     //Lexing
     %import common.NUMBER
@@ -61,24 +67,32 @@ template_grammar = r"""
     %import common.WS
     _OPEN_VAL.2: "{{" WS*
     _CLOSE_VAL: WS* "}}"
-    _OPEN_DIR: "{%" WS*
-    _CLOSE_DIR: WS* "%}"
+    _OPEN_DIR.2: "{%" WS*
+    _CLOSE_DIR: WS* "%}" "\n"?
     _COMMA: WS* "," WS*
     _IF: WS* "if"i WS*
     _ELSE: WS* "else"i WS*
     _ENDIF: WS* "endif"i WS*
     _ENDFOR: WS* "endfor"i WS*
     _FOREACH: WS* "foreach"i WS*
+    _LET.2: WS? "let"i WS?
+    _EQ: WS? "=" WS?
     _LPAR: WS* "(" WS*
     _RPAR: WS* ")" WS*
+    _LB: WS* "[" WS*
+    _RB: WS* "]" WS*
     _IN: WS* "in"i WS*
     ID: /[a-zA-Z_][a-zA-Z0-9_]*/
     LETTER.-1: /./s
-    _FORDELIM: WS* "{" WS*
-    _ENDFORDELIM: WS? "}" WS?
+    _FORDELIM: "{" WS*
+    _ENDFORDELIM: "}" ("\n"|" ")?
 """
 
 class LvlDict:
+  """
+  Allows for efficient handling of evaluation contexts without copying
+  and without relying on the structure of the used dictionnary-like object.
+  """
   def __init__(self, old, add):
     self.old = old
     self.add = add
@@ -104,8 +118,8 @@ class Engine(Interpreter):
   def ifelse(self, items):
     items = items.children
     if self.visit(items[0]):
-      return self.visit(items[1]) if items[1] else ""
-    return self.visit(items[2]) if items[2] else ""
+      return ''.join(str(self.visit(i)) for i in items[1:-1])
+    return self.visit(items[-1]) if items[-1] else ""
   
   def else_(self, tree):
     t = tree.children[0]
@@ -119,6 +133,9 @@ class Engine(Interpreter):
     to = (self.visit(i) for i in tree.children[1:])
     return f(*to)
   
+  def list(self, tree):
+    return [self.visit(child) for child in tree.children]
+  
   def foreach(self, tree):
     ids = self.visit(tree.children[0])
     loop_over = self.visit(tree.children[1])
@@ -127,11 +144,17 @@ class Engine(Interpreter):
     n = len(ids)
     for T in loop_over:
       assert n == 1 or len(T) == n
-      new = {ids[i] : (T[i],) for i in range(n)} if n > 1 else {ids[0]:(T,)}
+      new = {ids[i] : T[i] for i in range(n)} if n > 1 else {ids[0]:T}
       self.stack.append(LvlDict(self.stack[-1], new))
       res.append(self.visit(tree.children[2]))
       self.stack.pop()
-    return '\n'.join(res)
+    return ''.join(res)
+  
+  def let(self, tree):
+    new_id = tree.children[0][:]
+    value = self.visit(tree.children[1])
+    self.stack.append(LvlDict(self.stack[-1], {new_id:value}))
+    return ''
   
   def id_tuple(self, tree):
     return [u[:] for u in self.visit_children(tree)]
@@ -142,11 +165,11 @@ class Engine(Interpreter):
       return int(n.children[0])
     except Exception:
       return float(n.children[0])
-  def ESCAPED_STRING(self, s):
-    return s.children[0]
+  def estring(self, s):
+    return s.children[0][1:-1]
   def id(self, tree):
     ctx = self.stack[-1]
-    return ctx[tree.children[0][:]][0] #last [0] to add type in [1] later
+    return ctx[tree.children[0][:]]
   
 
 
