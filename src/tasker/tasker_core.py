@@ -26,6 +26,7 @@ from discord import NotFound
 from database.tasker import *
 from database.base import ServerConnexion as Server
 from database.tools import get_or_create
+from utils import fetch_message_list_opt, fetch_message_opt
 from database import engine
 from bot import bot
 from commands.interactions.tasker import TaskInteractView
@@ -138,7 +139,7 @@ async def create_task(guild_id, project_name, task, s=None):
   desc_message = await create_empty_messages(thread)
   #desc_message = await thread.send(content='placeholder')
   task.main_message_id = str(thread.starting_message.id)
-  task.sec_message_id = ';'.join(str(x) for x in desc_message)
+  task.sec_message_id = ';'.join(str(x.id) for x in desc_message)
   task.thread_id = str(thread.id)
   if proj.reminder_frequency:
     now = datetime.utcnow()
@@ -154,9 +155,10 @@ async def update_task_messages(task, s=None, main=None, sec=None):
    with Session(engine) as s, s.begin():
     s.add(task)
     return await update_task_messages(task, s, main, sec)
-  if main is None: main = await (await bot.fetch_channel(int(task.thread_id))).fetch_message(int(task.main_message_id))
+  if main is None:
+    main = await fetch_message_opt(task.thread_id, task.main_message_id)
   if sec is None:
-    sec = await (await bot.fetch_channel(int(task.thread_id))).fetch_message(int(task.sec_message_id.split(';')[0]))
+    sec = (await fetch_message_opt(task.thread_id, task.sec_message_id.split(';')[0]))
   main_message_components = make_main_task_message(task, s)
   sec_message_components = make_sec_task_message(task, s)
   await main.edit(**main_message_components)

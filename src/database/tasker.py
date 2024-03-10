@@ -129,6 +129,10 @@ class TaskLog(Base):
                          [Task.project_id, Task.title])
     ForeignKeyConstraint([project_id, member_id],
                          [Contributor.project_id, Contributor.member_id])
+    
+    def __repr__(s):
+      return (f'TaskLog(project={s.project_id}, task={s.task_title}, '
+             +f'msg={s.log_message}, author=<@{s.member_id}>')
 
 class TaskStep(Base):
     __tablename__ = 'task_step'

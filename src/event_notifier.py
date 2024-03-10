@@ -423,7 +423,7 @@ class EventNotifier:
         else: l[day]= [value]
         
     
-    async def fetch_message_list_opt(self, channel_id, msg_ids):
+    async def fetch_message_list_opt(self, channel_id, msg_ids): #TODO replace this with utils.py
         if msg_ids is None: return None
         l = [await self.fetch_message_opt(channel_id, msg_id) for msg_id in msg_ids.split(';')]
         if None in l:

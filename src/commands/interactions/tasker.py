@@ -31,6 +31,7 @@ class TaskInteractView(View): #TODO SANITIZE ALL USER INPUT
     super().__init__(timeout=None)
   
   async def common_choice_declaration(self, interaction, Kind):
+    await interaction.response.defer(ephemeral=True)
     with Session(engine) as s, s.begin():
      user_id, channel_id = interaction.user.id, interaction.channel_id
      task = tasker_core.find_task_by_thread(str(channel_id), s=s)
@@ -39,14 +40,14 @@ class TaskInteractView(View): #TODO SANITIZE ALL USER INPUT
         await tasker_core.remove_task_contributor(Kind, task, str(user_id))
        what = {TaskParticipant:"participant.e", TaskInterested:"interessé.e",
                TaskVeteran:"pouvant aider"}
-       return await interaction.response.send_message(
+       return await interaction.followup.send(
          content=(f'{interaction.user.mention}, confirmes-tu vouloir ne plus être '
                  +f'considéré.e comme {what[Kind]} pour la tâche "{task.title}" ?'),
          view=DangerForm(act),
          ephemeral=True
        )
      await tasker_core.add_task_contributor(Kind, task, str(user_id),s=s)
-    await interaction.response.send_message("Done!", ephemeral=True) #TODO better message
+    await interaction.followup.send("Done!", ephemeral=True) #TODO better message
   
   #TODO emojis :-)
   @button(label='Je prends!', custom_id='choose_task_button', style=ButtonStyle.primary)

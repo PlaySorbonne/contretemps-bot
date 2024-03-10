@@ -133,9 +133,11 @@ class DangerForm(discord.ui.View):
     async def button_callback(self, button, interaction):
         async def cback(self2, interaction2):
             if self2.children[0].value == 'YES I AM SURE':
+                await interaction2.response.defer(ephemeral=True)
                 await self.action()
-                await interaction2.response.send_message("Succeeded.", ephemeral=True)
-                await self.message.delete()
+                await interaction2.followup.send("Succeeded.", ephemeral=True)
+                try: await self.message.delete()
+                except Exception: pass
             else:
                 await interaction2.response.send_message("Bad confirmation", ephemeral=True)
                 await self.message.delete()
