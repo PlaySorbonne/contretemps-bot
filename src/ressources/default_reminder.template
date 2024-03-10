@@ -1,0 +1,5 @@
+Hello {{user_mention(reminded_user)}}, honorable aventurier·ère !
+Je viens pour prendre des nouvelles sur ta mission "{{task_name(task)}}"
+Ta mission est actuellement marquée comme étant remplie à {{task_percentage(task)}}{%if less_than(0, length(task_unfinished_steps(task)))%}{, et la prochaine étape à accomplir est  "{{ step_desc(first_of(task_unfinished_steps(task))) }}"}{%endif%} !
+Si jamais tu rencontres des difficultés, n'hésite pas à en parler à tes co-aventurier·ère·s !
+Lorque tu avances dans ta mission, n'oublie pas de marquer tes avancées dans ton Journal de Mission ici {{task_thread(task)}}, c'est très important pour savoir comment les choses avancent et pour garder des traces pour les futures missions !

@@ -33,6 +33,8 @@ from commands.interactions.tasker import TaskInteractView
 from template import parser as template_parser
 from lark.exceptions import UnexpectedInput
 
+from tasker.tasker_pretty import *
+
 #TODO custom timedelta dates type in sqlalchemy
 #TODO reminder frequency better granurarity (now just in days)
 
@@ -101,17 +103,21 @@ def remove_reminder(guild_id, project_name):
     for task in project.tasks:
       task.next_recall = None
 
-def set_reminder(guild_id, project_name, reminder):
+def set_reminder(guild_id, project_name, reminder, template=None):
   with Session(engine) as s, s.begin():
     project = _get_project(s, guild_id, project_name)
     project.reminder_frequency = int(reminder.total_seconds())
+    project.reminder_template = template
     now = datetime.utcnow()
     then = now + reminder
     choices = int(then.timestamp() - now.timestamp())
     for task in project.tasks:
       random_wait = randint(1, choices)
       task.next_recall = (now + timedelta(seconds=random_wait)).isoformat()
-
+def set_reminder_template(guild_id, project_name, template):
+  with Session(engine) as s, s.begin():
+    project = _get_project(s, guild_id, project_name)
+    project.reminder_template = template
 
 def add_project_role(guild_id, project_name, role):
   with Session(engine) as s, s.begin():
@@ -288,6 +294,14 @@ async def task_user_log(task, contributor, message, s):
   if freq:
     task.next_recall = roll_reminder_time(freq)
   s.add(log)
+  await update_task_secondary_message(task, s)
+
+async def update_task_secondary_message(task,s):
+  #TODO : handle long messages
+  msg = make_sec_task_message(task, s)
+  fst_id = task.sec_message_id.split(';')[0]
+  old = await fetch_message_opt(task.thread_id, fst_id)
+  await old.edit(**msg)
 
 async def validate_template(guild_id, project_name, template, context=None):
   with Session(engine) as s:
@@ -311,20 +325,18 @@ async def do_reminders():
      if task.advancement < 100 and now > checkpoint:
        for active in task.active:
          user = await bot.fetch_user(int(active.member_id))
-         contents = make_reminder_message(task, active, s)
+         contents = make_reminder_message(
+           task, active, s,
+           project.reminder_template
+         )
          await user.send(**contents)
        last = now + timedelta(seconds=int(project.reminder_frequency))
        choices = (last.timestamp() - now.timestamp())
        new_checkpoint = now + timedelta(seconds=randint(choices//2, choices))
        task.next_recall = new_checkpoint.isoformat()
 
-        
 
-def make_main_task_message(task, s):
-  return {'content': 'TODO: MAIN TASK MESSSAGE AND STUFF', 'view':TaskInteractView()}
-def make_sec_task_message(task, s):
-  return {'content': 'TODO: SECONDARY TASK MESSAGE AND STUFF'}
-def make_reminder_message(task, user, s):
-  return {'content': 'TODO: PRIVATE REMINDER MESSAGE !'}
+
+
 
 do_reminders.start()

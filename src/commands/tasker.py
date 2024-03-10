@@ -108,11 +108,13 @@ class TaskerCommands(commands.Cog):
   
   @commands.slash_command(description='Set a remainder frequency for a Project')
   @project_checks(admin=True)
+  @file_checks('template')
   async def set_project_remainder(
     self,
     ctx,
     project : Option(str, autocomplete=autocomp(get_projects)),
-    reminder : TimeDelta
+    reminder : TimeDelta,
+    template : Option(Attachment, default=None)
   ):
     if reminder == timedelta(seconds=0):
       tasker_core.remove_reminder(str(ctx.guild.id), project)
@@ -121,14 +123,25 @@ class TaskerCommands(commands.Cog):
       await ctx.respond(content=f'Échec de la commande. {reminder} est un mauvais argument. Exemple de bon format : "3 days, 1 hours, 7 minutes"', ephemeral=True)
     else:
       async def act():
-        tasker_core.set_reminder(str(ctx.guild.id), project, reminder)
+        tasker_core.set_reminder(str(ctx.guild.id), project, reminder, template)
         await ctx.respond(content=f'Fréquence de rappels mise à {reminder} pour le projet "{project}"', ephemeral=True)
       if reminder <= timedelta(hours=1):
         await ctx.respond(content=f"# ATTENTION, DÉLAI DE RAPPEL MIS À SEULEMENT {reminder}. RISQUE DE SPAM.",
                           view=DangerForm(act), ephemeral=True)
       else:
         await act()
-  
+
+  @commands.slash_command(description='Set reminder template for a project.')
+  @project_checks(admin=True)
+  @file_checks('template') #TODO typecheck and make test
+  async def set_reminder_template(
+    self,
+    ctx,
+    project : Option(str, autocomplete=autocomp(get_projects)),
+    template : Option(Attachment, default=None)
+  ):
+    tasker_core.set_reminder_template(ctx.guild.id, project, template)
+    await ctx.respond("Template mis avec succès.", ephemeral=True)
   
   @commands.slash_command(description='Add a mention/role to a project')
   @project_checks(admin=True)
