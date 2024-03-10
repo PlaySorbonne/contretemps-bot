@@ -1,6 +1,6 @@
 # Résumé
 
-{%foreach log in task_logs(task)%}{
+{%foreach log in task_logs(task)%}
 **{{relative_date(log_date(log))}}, entrée de {{user_mention(log_author(log))}}**: {{log_message(log)}}
-}
+{%endfor%}
 

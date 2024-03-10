@@ -1,38 +1,39 @@
 # Description
 {{task_description(task)}}
-{% if task_sub_steps(task) %}{
+{% if task_sub_steps(task) %}
 # Étapes
-{% foreach (step) in task_sub_steps(task) %}{
+{% foreach (step) in task_sub_steps(task) %}
 {{step_number(step)}}- {{step_desc(step)}} {%if step_done(step)%} :white_check_mark: {%else%} :white_square_button: {%endif%}
 
-}
-}{% endif %}
+{% endfor %}
+{% endif %}
 ## Avancement : {{task_percentage(task)}}%
 ## Remarques
-{% foreach (ps) in task_remark_steps(task) %}{
+{% foreach (ps) in task_remark_steps(task) %}
 - {{step_desc(ps)}}
-}
+{% endfor %}
 
 # Contraintes
-{% if task_start(task) %}{
+{% if task_start(task) %}
 **Date de début: ** {{relative_date(task_start(task))}} {%if less_than(now(), task_start(task))%} :x: {%endif%}
-}{% endif %}
+{% endif %}
 
-{% if task_end(task) %}{
+{% if task_end(task) %}
 **À finir au plus tard: ** {{relative_date(task_end(task))}}
-}{% endif %}
-{% if predecessors(task) %}{
-**Nécessite de finir : ** {%foreach (pred) in predecessors(task) %}{ {{task_thread(pred)}} {%if less_than(task_percentage(pred), 100)%} :x: {%endif%}
-}
-}{% endif %}
+{% endif %}
+
+{% if predecessors(task) %}
+**Nécessite de finir : ** {%foreach (pred) in predecessors(task) %}{{task_thread(pred)}} {%if less_than(task_percentage(pred), 100)%} :x: {%endif%}
+{% endfor %}
+{% endif %}
 
 
 # Équipe
-**Je participe :FOK: : ** {%foreach (p) in participants(task) %}{
-{{user_mention(p)}}. }
+**Je participe :FOK: : ** {%foreach (p) in participants(task) %}
+{{user_mention(p)}}. {%endfor%}
 
-**Je voudrais participer mais je ne sais pas faire : ** {%foreach (p) in interested(task) %}{
-{{user_mention(p)}}. }
+**Je voudrais participer mais je ne sais pas faire : ** {%foreach (p) in interested(task) %}
+{{user_mention(p)}}. {%endfor%}
 
-**Je veux participer mais je veux plus d'informations : ** {%foreach (p) in veterans(task) %}{
-{{user_mention(p)}}. }
+**Je veux participer mais je veux plus d'informations : ** {%foreach (p) in veterans(task) %}
+{{user_mention(p)}}. {%endfor%}

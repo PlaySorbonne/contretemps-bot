@@ -48,13 +48,14 @@ template_grammar = r"""
     _atomic: estring | number | id
     app: _expr _LPAR (_expr (_COMMA _expr)*)? _RPAR
     list: _LB (_expr (_COMMA _expr)*)? _RB
-    ifelse: _OPEN_DIR _IF _expr _CLOSE_DIR _FORDELIM _block+ _ENDFORDELIM [else2_] _endif
-           |_OPEN_DIR _IF _expr _CLOSE_DIR text [else_] _endif
-    else_: _OPEN_DIR _ELSE _CLOSE_DIR text
-    else2_: _OPEN_DIR _ELSE _CLOSE_DIR _FORDELIM _block+ _ENDFORDELIM
-    foreach: _OPEN_DIR _FOREACH id_tuple _IN _expr _CLOSE_DIR _FORDELIM [start] _ENDFORDELIM
+    ifelse: _OPEN_DIR _IF _expr _CLOSE_DIR _block+ maybe_else
+    maybe_else: _endif | else_
+    else_: _OPEN_DIR _ELSE _CLOSE_DIR _rest_of_else
+    _rest_of_else: _endif | _block _rest_of_else
+    foreach: _OPEN_DIR _FOREACH id_tuple _IN _expr _CLOSE_DIR _block* _endfor
     let: _OPEN_DIR _LET ID _EQ _expr _CLOSE_DIR
     _endif: _OPEN_DIR _ENDIF _CLOSE_DIR
+    _endfor: _OPEN_DIR _ENDFOR _CLOSE_DIR
     id_tuple: _LPAR ID (_COMMA ID)* _RPAR | ID
     text: LETTER+
     id: ID
@@ -68,7 +69,7 @@ template_grammar = r"""
     _OPEN_VAL.2: "{{" WS*
     _CLOSE_VAL: WS* "}}"
     _OPEN_DIR.2: "{%" WS*
-    _CLOSE_DIR: WS* "%}" "\n"?
+    _CLOSE_DIR: WS* "%}" /[ \t\f\r\n]/?
     _COMMA: WS* "," WS*
     _IF: WS* "if"i WS*
     _ELSE: WS* "else"i WS*
@@ -121,6 +122,11 @@ class Engine(Interpreter):
       return ''.join(str(self.visit(i)) for i in items[1:-1])
     return self.visit(items[-1]) if items[-1] else ""
   
+  def maybe_else(self, tree):
+    if tree.children:
+      return self.visit(tree.children[0])
+    return ""
+  
   def else_(self, tree):
     t = tree.children[0]
     return self.visit(t) if t else ""
@@ -146,9 +152,9 @@ class Engine(Interpreter):
       assert n == 1 or len(T) == n
       new = {ids[i] : T[i] for i in range(n)} if n > 1 else {ids[0]:T}
       self.stack.append(LvlDict(self.stack[-1], new))
-      res.append(self.visit(tree.children[2]))
+      res += [self.visit(child) for child in tree.children[2:]]
       self.stack.pop()
-    return ''.join(res)
+    return ''.join(str(e) for e in res)
   
   def let(self, tree):
     new_id = tree.children[0][:]
