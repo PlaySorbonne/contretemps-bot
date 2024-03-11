@@ -52,7 +52,8 @@ template_grammar = r"""
     maybe_else: _endif | else_
     else_: _OPEN_DIR _ELSE _CLOSE_DIR _rest_of_else
     _rest_of_else: _endif | _block _rest_of_else
-    foreach: _OPEN_DIR _FOREACH id_tuple _IN _expr _CLOSE_DIR _block* _endfor
+    foreach: _OPEN_DIR _FOREACH id_tuple _IN _expr [sep] _CLOSE_DIR _block* _endfor
+    sep: _WITH _SEP estring
     let: _OPEN_DIR _LET ID _EQ _expr _CLOSE_DIR
     _endif: _OPEN_DIR _ENDIF _CLOSE_DIR
     _endfor: _OPEN_DIR _ENDFOR _CLOSE_DIR
@@ -87,6 +88,8 @@ template_grammar = r"""
     LETTER.-1: /./s
     _FORDELIM: "{" WS*
     _ENDFORDELIM: "}" ("\n"|" ")?
+    _SEP: WS? "sep"i WS?
+    _WITH: WS? "with"i WS?
 """
 
 class LvlDict:
@@ -145,22 +148,24 @@ class Engine(Interpreter):
   def foreach(self, tree):
     ids = self.visit(tree.children[0])
     loop_over = self.visit(tree.children[1])
-    if not tree.children[2]: return ""
+    sep = self.visit(tree.children[2]) if tree.children[2] else ''
     res = []
     n = len(ids)
     for T in loop_over:
       assert n == 1 or len(T) == n
       new = {ids[i] : T[i] for i in range(n)} if n > 1 else {ids[0]:T}
       self.stack.append(LvlDict(self.stack[-1], new))
-      res += [self.visit(child) for child in tree.children[2:]]
+      res += [self.visit(child) for child in tree.children[3:]]
       self.stack.pop()
-    return ''.join(str(e) for e in res)
+    return sep.join(str(e) for e in res)
   
   def let(self, tree):
     new_id = tree.children[0][:]
     value = self.visit(tree.children[1])
     self.stack.append(LvlDict(self.stack[-1], {new_id:value}))
     return ''
+  
+  sep = lambda self, tree: self.visit(tree.children[0])
   
   def id_tuple(self, tree):
     return [u[:] for u in self.visit_children(tree)]
