@@ -1,0 +1,6 @@
+Plop! Une nouvelle est apparue pour projet **{{project_name}}**!!
+
+**Nom:** {{task_name(task)}}
+**Description:** {{task_description(task)}}
+
+Intéressée ? Tu peux trouver plus de détails ici {{task_thread(task)}}!

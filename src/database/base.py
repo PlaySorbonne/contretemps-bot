@@ -11,6 +11,7 @@ class ServerConnexion(Base):
     server_id: Mapped[str] = mc(primary_key=True)
     gtoken: Mapped[NULL[str]]
     gmail: Mapped[NULL[str]]
+    timezone : Mapped[str] = mc(default='UTC')
     
     access_rules: Mapped[List['UserAccess']] = relationship(back_populates="server")
     watches: Mapped[List['WatchedCalendar']] = relationship(back_populates="server")

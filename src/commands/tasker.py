@@ -18,21 +18,25 @@
 from typing import Optional
 from datetime import timedelta
 from functools import wraps
+import pytz
 
 from discord.ext import tasks, pages, commands
 from discord.utils import basic_autocomplete as autocomp
 from discord import CategoryChannel, Role, Option, Attachment, ApplicationContext
-from discord import Member
+from discord import Member, TextChannel
 
 from .interactions.common import DangerForm
 from .interactions.common import access_control
-from .common import TimeDelta
+from .common import TimeDelta, Time
 
 from tasker import tasker_core
 from tasker.task_text_input import tasks_parser
+from database.tasker import ProjectAlert
 
 async def get_projects(ctx):
   return tasker_core.get_guild_projects(str(ctx.interaction.guild.id))
+async def get_timezones(ctx): #TODO better selector
+  return pytz.all_timezones #TODO fix reverted GMT+t
 
 def project_checks(admin=True):
   def dec(f):
@@ -94,6 +98,22 @@ class TaskerCommands(commands.Cog):
   def __init__(self, bot):
     self.bot = bot
     self._last_member = None
+  
+  @commands.slash_command(description='Set timezone for server')
+  @access_control(2)
+  async def timezone(self, #TODO this belongs in common
+    ctx,
+    timezone : Option(str, autocomplete=autocomp(get_timezones))
+  ):
+    if timezone not in pytz.all_timezones:
+      return await ctx.respond(
+        "Cette timezone n'est pas valide. Elle doit être parmi les identifants"
+       +"présents ici :"
+       +"https://en.wikipedia.org/wiki/List_of_tz_database_time_zones",
+       ephemeral=True
+      )
+    tasker_core.set_timezone(ctx.guild.id, timezone)
+    await ctx.respond(f"Timezone mise à {timezone}", ephemeral=True)
   
   @commands.slash_command(description='Create a new Project')
   @access_control(2)
@@ -176,10 +196,11 @@ class TaskerCommands(commands.Cog):
     project : Option(str, autocomplete=autocomp(get_projects)),
     file : Attachment
   ):
+    from lark import UnexpectedInput #TODO not this
     try :
       tasks = tasks_parser.parse(file) #TODO handle errors
-    except Exception:
-      return await ctx.respond("Erreur inconnue lors de l'analyse des tâches.", ephemeral=True)
+    except UnexpectedInput as e:
+      return await ctx.respond(f"Erreur lors de l'analyse des taches:\n{e.get_context(file)}", ephemeral=True)
     await ctx.defer(ephemeral=True)
     try:
       await tasker_core.bulk_create_tasks(str(ctx.guild.id), project, tasks)
@@ -258,3 +279,44 @@ class TaskerCommands(commands.Cog):
     await tasker_core.remove_main_thread(ctx.guild.id, project, delete)
     await ctx.respond("Fait.", ephemeral=True)
   
+  @commands.slash_command(description='Make a project alert')
+  @project_checks(admin=True)
+  @file_checks('template')
+  async def make_project_alert(self,
+    ctx,
+    project : Option(str, autocomplete=autocomp(get_projects)),
+    new_title : Option(str, max_length=200),
+    channel : TextChannel,
+    kind : Option(
+      str, 
+      choices=['timely', 'on_create', 'on_complete']
+    ),
+    frequency : Optional[TimeDelta],
+    start : Optional[Time],
+    template : Option(Attachment, default=None)
+  ):
+    if kind == 'timely' and type(frequency) is commands.BadArgument:
+      return await ctx.respond(
+        "Mauvais format pour la fréquence. "
+       +"Exemple de bon format: '7 days, 5 hours, 7 seconds'",
+        ephemeral=True
+      )
+    elif kind == 'timely' and frequency is None:
+      return await ctx.respond(
+        "Pour une alerte régulière, il faut préciser une fréquence.",
+        ephemeral=True
+      )
+    elif type(start) is commands.BadArgument:
+      return await ctx.respond(
+        "Mauvais format pour la date. Format: YYYY-MM-DD HH:MM:SS",
+        ephemeral=True
+      )
+    d = {'timely':ProjectAlert.FREQUENT, 'on_create':ProjectAlert.ON_CREATE,
+         'on_complete':ProjectAlert.ON_COMPLETE } 
+    tasker_core.create_project_alert(
+      ctx.guild.id, project, str(channel.id),
+      new_title, d[kind], freq=frequency, template=template, start=start
+      #TODO check alert id uniqueness
+    )
+    await ctx.respond("Alerte créée avec succès.", ephemeral=True) 
+    

@@ -1,0 +1,6 @@
+#Liste des tâche orphelines
+
+{%foreach (t) in unfinished_tasks %}
+-**{{task_name(t)}}**, à trouver ici {{task_thread(t)}}
+
+{%endfor%}

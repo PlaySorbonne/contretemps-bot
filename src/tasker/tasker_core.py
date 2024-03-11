@@ -18,6 +18,7 @@
 from sqlalchemy.orm import Session
 from sqlalchemy import select
 from datetime import datetime, timedelta
+import pytz
 from random import randint
 import asyncio
 from discord.ext import tasks
@@ -42,6 +43,11 @@ def _get_project(s, guild_id, project_name):
   return (s.scalars(select(Project)
           .filter_by(project_name=project_name, server_id=str(guild_id)))
           .first())
+
+def set_timezone(guild_id, timezone):
+  with Session(engine) as s, s.begin():
+    server = get_or_create(s, Server, server_id=str(guild_id))
+    server.timezone = timezone
 
 def roll_reminder_time(freq, rho=.5):
   now = datetime.utcnow()
@@ -153,6 +159,13 @@ async def create_task(guild_id, project_name, task, s=None):
     choices = int(end.timestamp()-now.timestamp())
     checkpoint = (now+timedelta(seconds=randint(choices/2, choices)))
     task.next_recall = checkpoint.isoformat()
+  c_alerts = s.scalars(select(ProjectAlert).
+                       filter_by(kind=ProjectAlert.ON_CREATE)
+  )
+  for alert in c_alerts:
+    msg = make_task_change_message(task, s, 'create', alert.template)
+    channel = await bot.fetch_channel(str(alert.channel_id))
+    await channel.send(**msg)
     
   await update_task_messages(task, s, thread.starting_message, desc_message[0]) #TODO handle multiple messages
 
@@ -212,10 +225,11 @@ async def publish_main_thread(
       message = thread.starting_message.id
       sec_messages = await create_empty_messages(thread)
     await thread.edit(pinned=True)
+    message = await thread.fetch_message(int(message))
     proj.main_thread = str(thread.id)
     proj.main_template=None
     proj.sec_template=None
-    proj.main_message = message
+    proj.main_message = str(message.id)
     proj.sec_messages = ';'.join(str(x.id) for x in sec_messages)
     await update_main_thread(proj, s, thread, message, sec_messages)
     return thread
@@ -244,7 +258,11 @@ async def update_main_thread(
   main_message=None,
   sec_messages=None
 ):
-  pass
+  #TODO check Nones
+  msg = make_main_thread_message(proj, s)
+  msg2 = make_sec_thread_message(proj, s)
+  await main_message.edit(**msg)
+  await sec_messages[0].edit(**msg2)
 
 def find_task_by_thread(thread_id, s=None):
   if s is None:
@@ -303,6 +321,20 @@ async def update_task_secondary_message(task,s):
   old = await fetch_message_opt(task.thread_id, fst_id)
   await old.edit(**msg)
 
+def create_project_alert(
+  guild_id, project_name, channel_id,
+  alert_id, kind, freq=None, template=None, start=None
+):
+  with Session(engine) as s, s.begin():
+    proj = _get_project(s, guild_id, project_name)
+    alert = ProjectAlert(
+      alert_id=alert_id, kind=kind, channel_id=channel_id,
+      frequency=int(freq.total_seconds()) if freq else None, template=template
+    )
+    if start:
+      alert.start = start.utcformat()
+    proj.alerts.append(alert)
+
 async def validate_template(guild_id, project_name, template, context=None):
   with Session(engine) as s:
     project = _get_project(s, guild_id, project_name)
@@ -335,8 +367,34 @@ async def do_reminders():
        new_checkpoint = now + timedelta(seconds=randint(choices//2, choices))
        task.next_recall = new_checkpoint.isoformat()
 
-
-
+@tasks.loop(seconds=10)
+async def do_frequent_alerts():
+  with Session(engine) as s, s.begin():
+    alerts = s.scalars(select(ProjectAlert)
+                       .where(ProjectAlert.kind == ProjectAlert.FREQUENT)
+    )
+    async def send_alert(s, l, a):
+      channel = await bot.fetch_channel(str(a.channel_id))#TODO safely
+      alert_message = make_frequent_alert_message(
+        a.project, l, s, a.template
+      )
+      await channel.send(**alert_message)
+    for alert in alerts:
+      if alert.last_update is None:
+        alert.last_update = datetime.utcnow()
+        await send_alert(s, None, alert)
+      else:
+        last = datetime.fromisoformat(alert.last_update)
+        last =  pytz.timezone(alert.project.server.timezone).localize(last)
+        nxt = last + timedelta(seconds=int(alert.frequency))
+        now = pytz.UTC.localize(datetime.utcnow())
+        if now >= nxt:
+          last2=last
+          while last2+timedelta(seconds=int(alert.frequency)) < now:
+            last2+=timedelta(seconds=int(alert.frequency))
+          alert.last_update = last2.replace(tzinfo=None)
+          await send_alert(s, last.replace(tzinfo=None), alert)
 
 
 do_reminders.start()
+do_frequent_alerts.start()

@@ -29,6 +29,7 @@ from commands.interactions.tasker import TaskInteractView
 common_generic_context = {
   'less_than': (lambda a, b: a <= b),
   'and': (lambda a, b: a and b),
+  'not': (lambda t: not t),
   'truncate': (lambda s, n: s[:n]),
   'length': len,
   'roll_dice': randint,
@@ -51,6 +52,7 @@ def make_common_project_context(s):
     'project_tasks': (lambda p: p.tasks),
     'project_unfinished_tasks':
       (lambda p: [t for t in p.tasks if t.advancement <= 100]),
+    'task_finished': (lambda t: t.advancement >= 100),
     'task_name': (lambda t: t.title),
     'task_thread': (lambda t: f'<#{t.thread_id}>'),
     'task_sub_steps':
@@ -60,7 +62,7 @@ def make_common_project_context(s):
     'task_all_steps': (lambda t: t.steps),
     'task_unfinished_steps':
       (lambda t: [x for x in t.steps if not x.done and x.kind==TaskStep.SUBTASK]),
-    'task_percentage': (lambda t: (t.advancement)),
+    'task_percentage': (lambda t: (t.advancement or 0)),
     'task_description': (lambda t: t.description),
     'task_start': (lambda t: isotodt(t.starts_after)if t.starts_after else None),
     'task_end': (lambda t: isotodt(t.ends_before) if t.ends_before else None),
@@ -87,7 +89,16 @@ def make_common_project_context(s):
   }
   return common_context
 
-
+def make_global_project_context(s, p):
+  context = {
+    'project_name': p.project_name,
+    'project_forum': f'<#p.forum_id>',
+    'project_main_thread': f'<#p.main_thread>',
+    'all_tasks': p.tasks,
+    'unfinished_tasks':[t for t in p.tasks if t.advancement<100],
+    'finished_tasks': [t for t in p.tasks if t.advancement>=100],
+  }
+  return context
 
 def make_reminder_message(task, user, s, template=None):
   context = {
@@ -117,3 +128,45 @@ def make_sec_task_message(task, s):
   engine = Engine(context)
   return {'content': engine.visit(parser.parse(sec))}
 
+def make_frequent_alert_message(project, last, s, template=None):
+  context = (
+    make_common_project_context(s) | 
+    common_generic_context |
+    make_global_project_context(s, project)
+  )
+  if template is None:
+    template = open('./src/ressources/default_frequent_alert.template').read()
+  engine = Engine(context)
+  return {'content': engine.visit(parser.parse(template))}
+
+def make_task_change_message(task, s, what, template=None):
+  context = {
+    'task' : task,
+    'project_name': task.project,
+  } | make_common_project_context(s) | common_generic_context
+  if template is None:
+    template = open(f'./src/ressources/default_{what}_alert.template').read()
+  engine = Engine(context)
+  return {'content': engine.visit(parser.parse(template)) }
+
+def make_main_thread_message(project, s, template=None):
+  context = (
+    make_common_project_context(s) | 
+    common_generic_context |
+    make_global_project_context(s, project)
+  )
+  if template is None:
+    template = open('./src/ressources/default_project_main_message.template').read()
+  engine = Engine(context)
+  return {'content': engine.visit(parser.parse(template))}
+
+def make_sec_thread_message(project, s, template=None):
+  context = (
+    make_common_project_context(s) | 
+    common_generic_context |
+    make_global_project_context(s, project)
+  )
+  if template is None:
+    template = open('./src/ressources/default_project_sec_message.template').read()
+  engine = Engine(context)
+  return {'content': engine.visit(parser.parse(template))}

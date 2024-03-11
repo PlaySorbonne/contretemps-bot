@@ -44,6 +44,9 @@ class Project(Base):
     tasks : Mapped[List['Task']] = relationship(back_populates='project')
     contributors : Mapped[List['Contributor']] = (
         relationship(back_populates='project'))
+    alerts : Mapped[List['ProjectAlert']] = (
+      relationship(back_populates='project')
+    )
     
     UniqueConstraint("project_name", "server_id", name='project_name_unique')
 
@@ -152,6 +155,20 @@ class TaskStep(Base):
     def __repr__(self):
       return f"TaskStep({self.project_id}, {self.step_description[:20]}-, ...)"
 
+class ProjectAlert(Base):
+    __tablename__ = 'project_alert'
+    
+    ON_CREATE, ON_COMPLETE, FREQUENT = 0, 1, 2
+    
+    alert_id : Mapped[str] = mc(primary_key=True)
+    project_id : Mapped[str] = mc(FK(Project.project_id), primary_key=True)
+    channel_id : Mapped[str]
+    kind: Mapped[int]
+    last_update: Mapped[NULL[str]]
+    frequency: Mapped[NULL[str]]
+    template: Mapped[NULL[str]]
+    
+    project : Mapped[Project] = relationship(back_populates='alerts')
 
 class ContributorTaskMixin:
     project_id : Mapped[int] = mc(primary_key=True)
