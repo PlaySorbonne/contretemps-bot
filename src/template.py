@@ -35,6 +35,7 @@ advanced semantic meanings to a <formating tool> instance by way of functions.
 from lark import Lark, Token
 from lark.visitors import Interpreter
 
+#TODO add and, or, =, <, > operator in expressions
 template_grammar = r"""
     // Grammar
     start: _block*
@@ -44,10 +45,12 @@ template_grammar = r"""
           | ifelse
           | let
     value: _OPEN_VAL _expr _CLOSE_VAL
-    _expr: _atomic | app | list
-    _atomic: estring | number | id
+    _expr: _atomic | app | any | all | _LPAR _expr _RPAR
+    _atomic: estring | number | id | list
     app: _expr _LPAR (_expr (_COMMA _expr)*)? _RPAR
     list: _LB (_expr (_COMMA _expr)*)? _RB
+    any: _ANY ID _IN _expr _WHERE _expr
+    all: _ALL ID _IN _expr _WHERE _expr
     ifelse: _OPEN_DIR _IF _expr _CLOSE_DIR _block+ maybe_else
     maybe_else: _endif | else_
     else_: _OPEN_DIR _ELSE _CLOSE_DIR _rest_of_else
@@ -90,6 +93,9 @@ template_grammar = r"""
     _ENDFORDELIM: "}" ("\n"|" ")?
     _SEP: WS? "sep"i WS?
     _WITH: WS? "with"i WS?
+    _ANY: WS? "any"i WS?
+    _ALL: WS? "all"i WS?
+    _WHERE: WS? "where"i WS?
 """
 
 class LvlDict:
@@ -164,6 +170,27 @@ class Engine(Interpreter):
     value = self.visit(tree.children[1])
     self.stack.append(LvlDict(self.stack[-1], {new_id:value}))
     return ''
+  
+  def any(self, tree):
+    new_id = tree.children[0][:]
+    iterable = self.visit(tree.children[1]) #TODO check if list
+    for value in iterable:
+      self.stack.append(LvlDict(self.stack[-1], {new_id:value}))
+      if self.visit(tree.children[2]):
+        self.stack.pop()
+        return True
+      self.stack.pop()
+    return False
+  def all(self, tree):
+    new_id = tree.children[0][:]
+    iterable = self.visit(tree.children[1]) #TODO check if list
+    for value in iterable:
+      self.stack.append(LvlDict(self.stack[-1], {new_id:value}))
+      if not self.visit(tree.children[2]):
+        self.stack.pop()
+        return False
+      self.stack.pop()
+    return True
   
   sep = lambda self, tree: self.visit(tree.children[0])
   
