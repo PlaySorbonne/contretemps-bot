@@ -35,3 +35,6 @@ Nécessite de finir : {%foreach (pred) in predecessors(task) %}{{task_thread(pre
 
 **Je veux participer mais je veux plus d'informations : ** {%foreach (p) in veterans(task) %}
 {{user_mention(p)}}. {%endfor%}
+
+
+(Tip: Si vous voulez utiliser un des boutons tout en ayant une vue sur les derniers messages du thread, vous pouvez essayer la commande '**/show_main_message**' !)

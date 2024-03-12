@@ -29,9 +29,11 @@ from .interactions.common import DangerForm
 from .interactions.common import access_control
 from .common import TimeDelta, Time
 
-from tasker import tasker_core
+from tasker import tasker_core, tasker_pretty
 from tasker.task_text_input import tasks_parser
 from database.tasker import ProjectAlert
+from sqlalchemy.orm import Session
+from database import engine
 
 async def get_projects(ctx):
   return tasker_core.get_guild_projects(str(ctx.interaction.guild.id))
@@ -319,4 +321,15 @@ class TaskerCommands(commands.Cog):
       #TODO check alert id uniqueness
     )
     await ctx.respond("Alerte créée avec succès.", ephemeral=True) 
-    
+  
+  @commands.slash_command(description='Show main message down here')
+  async def show_main_message(self, ctx):
+    with Session(engine) as s, s.begin(): 
+    #TODO tasker_core.(wrap things with a session and keep it and return it)
+      task = tasker_core.find_task_by_thread(ctx.channel_id, s)
+      if task:
+        msg = tasker_pretty.make_main_task_message(task, s)
+        msg['ephemeral'] = True
+        await ctx.respond(**msg)
+
+  

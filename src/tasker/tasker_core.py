@@ -370,6 +370,9 @@ async def update_task_secondary_message(task,s):
   old = await fetch_message_opt(task.thread_id, fst_id)
   await old.edit(**msg)
 
+def is_task_thread(thread_id):
+  return find_task_by_thread(thread_id) is not None
+
 def create_project_alert(
   guild_id, project_name, channel_id,
   alert_id, kind, freq=None, template=None, start=None
