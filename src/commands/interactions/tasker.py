@@ -20,7 +20,7 @@ from discord import ButtonStyle
 import discord
 from sqlalchemy.orm import Session
 
-from tasker import tasker_core
+from tasker import tasker_core, tasker_graph
 from database import engine
 from database.tools import get_or_create
 from database.tasker import *
@@ -151,6 +151,17 @@ class TaskInteractView(View): #TODO SANITIZE ALL USER INPUT
     await interaction.response.send_message(
       'C:', ephemeral=True,
       view=AddStepView()
+    )
+  
+  @button(
+    label='Ajouter une dépendance',
+    row=3,
+    custom_id='add_dependency_button',
+  )
+  async def add_dep_callback(self, button, interaction):
+    await interaction.response.send_message(
+      'C:', ephemeral=True,
+      view=AddDependencyView(interaction.channel_id)
     )
 
 
@@ -309,3 +320,40 @@ class AddStepView(View):
       content="Fait!",
       view=None
     )
+
+def AddDependencyView(channel_id):
+  with Session(engine) as s:
+    _task = tasker_core.find_task_by_thread(channel_id, s)
+    choices = sorted([
+      (task.thread_id, task.title) for task in _task.project.tasks
+      if task not in tasker_graph.all_codependencies(_task, s)
+    ])
+  class AddDependencyView(View):
+     def __init__(self):
+       super().__init__()
+       self.chosen_task = None
+    
+     @paginated_selector(
+       name = "Quelle tâche ?",
+       row = 0,
+       options = choices,
+       to_str = lambda x: x[1]
+     )
+     async def task_choose_callback(self, select, interaction, value):
+       select.placeholder = value[1]
+       self.chosen_task = value[0]
+       await interaction.response.edit_message(view=self)
+     
+     @button(label='Valider')
+     async def end_callback(self, button, interaction):
+      if self.chosen_task is None:
+        return await interaction.response.send_message(
+          "Il faut d'abord choisir une tâche!",
+          ephemeral=True
+        )
+      await tasker_core.add_dependency(channel_id, self.chosen_task)
+      await interaction.response.send_message(
+        "Ça devrait être bon!",
+        ephemeral=True
+      )
+  return AddDependencyView()

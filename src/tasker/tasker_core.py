@@ -383,6 +383,13 @@ async def add_step(thread_id, description, n, kind):
    ))
    await update_task_messages(task, s)
 
+async def add_dependency(thread_1, thread_2):
+ with Session(engine) as s, s.begin():
+   t1 = find_task_by_thread(thread_1, s)
+   t2 = find_task_by_thread(thread_2, s)
+   if t2 not in t1.predecessors:
+     t1.predecessors.append(t2)
+
 def create_project_alert(
   guild_id, project_name, channel_id,
   alert_id, kind, freq=None, template=None, start=None
