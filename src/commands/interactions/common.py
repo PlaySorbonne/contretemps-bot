@@ -170,7 +170,10 @@ class DangerForm(discord.ui.View):
             if self2.children[0].value == 'YES I AM SURE':
                 await interaction2.response.defer(ephemeral=True)
                 await self.action()
-                await interaction2.followup.send("Succeeded.", ephemeral=True)
+                #await interaction2.followup.send("Succeeded.", ephemeral=True)
+                await interaction.edit_original_response(
+                  content='Done!', view=None
+                )
                 self.action = None
             else:
                 await interaction2.response.send_message("Bad confirmation", ephemeral=True)
@@ -180,6 +183,6 @@ class DangerForm(discord.ui.View):
           await interaction.response.send_modal(modal)
         else:
           await self.action()
-          await interaction.response.send_message("Fait!", ephemeral=True)
+          await interaction.response.edit_message(content="Fait!", view=None)
           self.action = None
 ################### END GENERIC/COMMON PARTS FOR COMMANDS #####################
