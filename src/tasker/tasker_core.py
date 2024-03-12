@@ -28,6 +28,7 @@ from database.tasker import *
 from database.base import ServerConnexion as Server
 from database.tools import get_or_create
 from utils import fetch_message_list_opt, fetch_message_opt, fetch_channel_opt
+from utils import publish_long_message
 from database import engine
 from bot import bot
 from commands.interactions.tasker import TaskInteractView
@@ -69,10 +70,10 @@ class TemplateInterpreterError(Exception):
 
 
 
-async def create_project(guild, name, category, who):
+async def create_project(guild, name, forum, category, who):
   with Session(engine) as s, s.begin():
     guild_object = get_or_create(s, Server, server_id=str(guild.id))
-    forum = await guild.create_forum_channel(name=name, category=category)
+    #forum = await guild.create_forum_channel(name=name, category=category
     new_project = Project(forum_id = str(forum.id), project_name=name)
     guild_object.projects.append(new_project)
     user = Contributor(member_id=str(who), project_admin=1)
@@ -148,7 +149,7 @@ async def create_task(guild_id, project_name, task, s=None):
   proj.tasks.append(task)
   forum = await bot.fetch_channel(int(proj.forum_id))
   thread = await forum.create_thread(name=task.title, content='placeholder')
-  desc_message = await create_empty_messages(thread)
+  desc_message = await create_empty_messages(thread,n=1)
   task.main_message_id = str(thread.starting_message.id)
   task.sec_message_id = ';'.join(str(x.id) for x in desc_message)
   task.thread_id = str(thread.id)
@@ -173,14 +174,16 @@ async def update_task_messages(task, s=None, main=None, sec=None):
    with Session(engine) as s, s.begin():
     s.add(task)
     return await update_task_messages(task, s, main, sec)
-  if main is None:
-    main = await fetch_message_opt(task.thread_id, task.main_message_id)
-  if sec is None:
-    sec = (await fetch_message_opt(task.thread_id, task.sec_message_id.split(';')[0]))
   main_message_components = make_main_task_message(task, s)
   sec_message_components = make_sec_task_message(task, s)
-  await main.edit(**main_message_components)
-  await sec.edit(**sec_message_components)
+  #await await main.edit(**main_message_components)
+  new_messages = await publish_long_message(task.main_message_id, task.thread_id, main_message_components)
+  task.main_message_id = new_messages
+  task.sec_messages = await publish_long_message(
+    task.sec_messages,
+    task.thread_id,
+    sec_message_components
+  )
 
 async def bulk_create_tasks(guild_id, project_name, tasks):
   with Session(engine, autoflush=False) as s, s.begin():
@@ -240,7 +243,7 @@ async def publish_main_thread(
     else:
       thread = proj.main_thread or await forum.create_thread(name=title, content='placeholder')
       message = thread.starting_message.id
-      sec_messages = await create_empty_messages(thread)
+      sec_messages = await create_empty_messages(thread,n=1)
     await thread.edit(pinned=True)
     message = await thread.fetch_message(int(message))
     proj.main_thread = str(thread.id)
@@ -280,16 +283,25 @@ async def update_main_thread(
       return await update_main_thread(
         proj, s,thread, main_message, sec_messages
       )
-  if thread is None:
-    thread = await bot.fetch_channel(int(proj.main_thread))
-    main_message = await thread.fetch_message(int(proj.main_message))
-    sec_messages = [ #TODO handle multiple messages
-      await thread.fetch_message(int(proj.sec_messages.split(';')[0]))
-    ]
   msg = make_main_thread_message(proj, s)
   msg2 = make_sec_thread_message(proj, s)
-  await main_message.edit(**msg)
-  await sec_messages[0].edit(**msg2)
+  #await main_message.edit(**msg)
+  proj.main_message = await publish_long_message(
+    proj.main_message,
+    proj.main_thread,
+    msg
+  )
+  proj.sec_messages = await publish_long_message(
+    proj.sec_messages,
+    proj.main_thread,
+    msg2
+  )
+  #await sec_messages[0].edit(**msg2)
+
+async def update_main_thread_of(project_name, guild_id):
+  with Session(engine) as s, s.begin():
+    proj = _get_project(s, str(guild_id), project_name)
+    await update_main_thread(proj, s)
 
 def find_task_by_thread(thread_id, s=None):
   if s is None:

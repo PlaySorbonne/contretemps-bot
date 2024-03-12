@@ -23,7 +23,7 @@ import pytz
 from discord.ext import tasks, pages, commands
 from discord.utils import basic_autocomplete as autocomp
 from discord import CategoryChannel, Role, Option, Attachment, ApplicationContext
-from discord import Member, TextChannel
+from discord import Member, TextChannel, ForumChannel
 
 from .interactions.common import DangerForm
 from .interactions.common import access_control
@@ -119,11 +119,15 @@ class TaskerCommands(commands.Cog):
   
   @commands.slash_command(description='Create a new Project')
   @access_control(2)
-  async def create_project(self, ctx, title, category: CategoryChannel):
+  async def create_project(self, ctx,
+    forum:ForumChannel,
+    title: str,
+    category: CategoryChannel
+  ):
     if len(title)>100:
       return await ctx.respond(content=f'Impossible de créer un projet avec ce titre. La taille du titre doit être inférieure à 100.', ephemeral=True)
     await ctx.respond(content=f'Création du projet "{title}"...', ephemeral=True)
-    project, forum = await tasker_core.create_project(ctx.guild, title, 
+    project, forum = await tasker_core.create_project(ctx.guild, title, forum,
                                                       category, ctx.user.id)
     await ctx.edit(content="Projet créé avec succès, forum: "+forum.mention)
   
@@ -331,5 +335,13 @@ class TaskerCommands(commands.Cog):
         msg = tasker_pretty.make_main_task_message(task, s)
         msg['ephemeral'] = True
         await ctx.respond(**msg)
-
+  
+  @commands.slash_command(description='Update main thread messages for a project')
+  @project_checks(admin=False)
+  async def update_thread(self, ctx,
+    project : Option(str, autocomplete=autocomp(get_projects))
+  ):
+    await ctx.defer(ephemeral=True)
+    await tasker_core.update_main_thread_of(project, ctx.guild.id)
+    await ctx.respond('Fait!')
   
