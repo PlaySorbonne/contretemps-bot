@@ -43,6 +43,19 @@ print(e.visit(res))
 
 res = parser.parse('HEHE\\\nHOHO\\\\HUHU')
 print(e.visit(res))
+
+res = parser.parse('{%foreach i in [1,2,3] with sep "\\n" %}{{i}}{%endfor%}')
+print(e.visit(res))
+
+res = parser.parse('''A\\
+{%if 1 %}
+B
+{%endif%}''')
+print(e.visit(res))
+
+res = parser.parse(open('./tests/template_nl_escaping.template').read())
+print(e.visit(res))
+
 """
 delete from task;; delete from project ;; delete from task_step ;; delete from contributor ;; delete from task_veteran ;; delete from task_participant ;; delete from task_interested ;; delete from task_dependency ;; delete from project_alert ;; delete from task_log;;
 """

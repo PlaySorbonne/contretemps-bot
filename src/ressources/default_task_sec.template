@@ -1,6 +1,10 @@
-# Résumé
+# Journal de Bord
 
-{%foreach log in task_logs(task)%}
+{%if task_logs(task) %}
+{%foreach log in task_logs(task) with sep ""%}
 **{{relative_date(log_date(log))}}, entrée de {{user_mention(log_author(log))}}**: {{log_message(log)}}
 {%endfor%}
+{%else%}
+Rien à voir ici pour le moment...
+{%endif%}
 

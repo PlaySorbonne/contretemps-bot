@@ -1,0 +1,24 @@
+Yay! La mission **{{task_name(task)}}** a été réalisée avec succès par {%foreach c in participants(task) with sep ", " %}{{user_mention(c)}}{%endfor%} !
+
+{% if any x in successors(task) where not(unfinished_predecessors(task)) %}
+Les missions suivantes viennent d'être débloquées!
+{% foreach 
+  mission in successors(task)
+  where not(unfinished_predecessors(task))
+  with sep "\n"
+%}
+-{{task_name(mission)}}, ici: {{task_thread(mission)}}.\
+{%if participants(task) %}
+{%foreach p in participants(task) with sep ", "%}
+{{user_mention(p)}}\
+{%endfor%}
+, vous étiez partant·e·s pour vous occuper de cette mission! \
+{%endif%}
+{%if interested(mission)%}
+{%foreach i in interested(mission) with sep ", "%}
+{{user_mention(i)}}\
+{%endfor%}
+, vous étiez intréressé·e·s par cette mission !
+{%endif%}
+{%endfor%}
+{%endif%}
