@@ -341,6 +341,28 @@ async def task_user_log(task, contributor, message, s):
   s.add(log)
   await update_task_secondary_message(task, s)
 
+async def delete_step(step_id):
+ with Session(engine) as s, s.begin():
+   step = s.get(TaskStep, step_id)
+   if step:
+     task = step.task
+     s.delete(step)
+     await update_task_messages(task, s)
+
+async def edit_step_number(step_id, newnum):
+ with Session(engine) as s, s.begin():
+   step = s.get(TaskStep, step_id)
+   if step:
+     step.step_number = newnum
+     await update_task_messages(step.task, s)
+
+async def check_step(step_id):
+ with Session(engine) as s, s.begin():
+   step = s.get(TaskStep, step_id)
+   if step:
+     step.done = int(not step.done)
+     await update_task_messages(step.task, s)
+
 async def update_task_secondary_message(task,s):
   #TODO : handle long messages
   msg = make_sec_task_message(task, s)

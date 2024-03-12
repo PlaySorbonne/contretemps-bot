@@ -84,7 +84,7 @@ class Task(Base):
     active : Mapped[List['Contributor']] = relationship(
         back_populates='current_tasks', secondary='task_participant')
     steps : Mapped[List['TaskStep']] = (
-        relationship(order_by='TaskStep.step_number'))
+        relationship(order_by='TaskStep.step_number', back_populates='task'))
     successors : Mapped[List['Task']] = relationship(
         secondary='task_dependency',
         primaryjoin=and_(title == TaskDependency.task1,project_id == TaskDependency.project_id),
@@ -153,6 +153,8 @@ class TaskStep(Base):
     kind : Mapped[int]
     ForeignKeyConstraint([project_id, task_title],
                          [Task.project_id, Task.title])
+    
+    task : Mapped[Task] = relationship(back_populates='steps')
     
     def __repr__(self):
       return f"TaskStep({self.project_id}, {self.step_description[:20]}-, ...)"

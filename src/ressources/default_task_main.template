@@ -3,7 +3,7 @@
 {% if task_sub_steps(task) %}
 **Étapes**
 {% foreach (step) in task_sub_steps(task) with sep "\n" %}
-{{step_number(step)}}- {{step_desc(step)}} {%if step_done(step)%} :white_check_mark: {%else%} :white_square_button: {%endif%}
+{{step_number(step)}}- {{step_desc(step)}} {%if step_done(step)%} :white_check_mark: {%else%} ☐ {%endif%}
 {% endfor %}
 
 **Remarques**

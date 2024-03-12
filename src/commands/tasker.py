@@ -138,7 +138,7 @@ class TaskerCommands(commands.Cog):
   ):
     if reminder == timedelta(seconds=0):
       tasker_core.remove_reminder(str(ctx.guild.id), project)
-      await ctx.respond(content='Rappels supprimés pour le projet "{project}"', ephemeral=True) 
+      await ctx.respond(content=f'Rappels supprimés pour le projet "{project}"', ephemeral=True) 
     elif type(reminder) is commands.BadArgument:
       await ctx.respond(content=f'Échec de la commande. {reminder} est un mauvais argument. Exemple de bon format : "3 days, 1 hours, 7 minutes"', ephemeral=True)
     else:

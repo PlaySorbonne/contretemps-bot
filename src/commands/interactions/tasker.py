@@ -17,6 +17,7 @@
 
 from discord.ui import View, button
 from discord import ButtonStyle
+import discord
 from sqlalchemy.orm import Session
 
 from tasker import tasker_core
@@ -24,6 +25,7 @@ from database import engine
 from database.tools import get_or_create
 from database.tasker import *
 from .common import DangerForm, ActionModal
+from .common import paginated_selector
 
 
 class TaskInteractView(View): #TODO SANITIZE ALL USER INPUT
@@ -135,6 +137,103 @@ class TaskInteractView(View): #TODO SANITIZE ALL USER INPUT
   )
   async def edit_steps_callback(self, button, interaction):
     await interaction.response.send_message(
-      "Ce bouton n'est pas encore implémenté :(",
-      ephemeral=True
+      "Choisissez une tâche ou une remarque à modificer!",
+      ephemeral=True, 
+      view=EditStepView(interaction.channel_id)
     )
+
+
+def EditStepView(thread_id):
+  with Session(engine) as s:
+    task = tasker_core.find_task_by_thread(str(thread_id), s)
+    options = [
+      (s.step_id, f'{s.step_number}-{s.step_description}')
+      for s in task.steps
+    ]
+    descriptions = {s.step_id: s.step_description for s in task.steps}
+    is_step = {s.step_id: (s.kind == TaskStep.SUBTASK) for s in task.steps}
+  
+  
+  class EditStepView(View):
+     def __init__(self):
+       super().__init__()
+       self.step = -1
+     
+     @paginated_selector(
+       name = "Quelle étape modifier?",
+       row = 0,
+       options = options,
+       to_str = lambda x: x[1]
+     )
+     async def task_choose_callback(self, select, interaction, value):
+       select.placeholder = value[1]
+       self.step = value[0]
+       await interaction.response.edit_message(view=self)
+     
+     @button(
+       label = f'Supprimer étape',
+       row = 1,
+       style=discord.ButtonStyle.red
+     )
+     async def del_callback(self, button, interaction):
+       if self.step == -1:
+         return await interaction.response.send_message(
+           "Il faut d'abord choisir une tâche!",
+           ephemeral=True
+         )
+       await tasker_core.delete_step(self.step)
+       await interaction.response.edit_message(view=None, content='Fait!')
+     
+     @button(
+       label = f'Changer numéro',
+       row = 1,
+       style=discord.ButtonStyle.green
+     )
+     async def num_callback(self, button, interaction):
+       if self.step == -1:
+         return await interaction.response.send_message(
+           "Il faut d'abord choisir une étape/remarque!",
+           ephemeral=True
+         )
+       if not is_step[self.step]:
+         return await interaction.response.send_message(
+           "Impossible de changer le numéro d'une remarque",
+           ephemeral=True
+         )
+       async def cback(self2, interaction2):
+         a = self2.children[0].value
+         try:
+           a = float(a)
+           await tasker_core.edit_step_number(self.step, a)
+           await self.message.edit(view=None, content='Done!')
+           await interaction2.response.defer()
+         except ValueError:
+           return await interaction2.response.send_message(
+              f'Erreur! Il faut mettre un nombre à virgure',
+              ephemeral=True
+           )
+       modal = ActionModal('Entrez un numéro d\'étape', cback, "2, 3.8, etc")
+       await interaction.response.send_modal(modal)
+     
+     @button(
+       label = f'Cocher/décocher',
+       row = 1,
+       style=discord.ButtonStyle.green
+     )
+     async def check_callback(self, button, interaction):
+       if self.step == -1:
+         return await interaction.response.send_message(
+           "Il faut d'abord choisir une étape/remarque!",
+           ephemeral=True
+         )
+       if not is_step[self.step]:
+         return await interaction.response.send_message(
+           "Impossible de changer le numéro d'une remarque",
+           ephemeral=True
+         )
+       await tasker_core.check_step(self.step)
+       await interaction.response.edit_message(
+         content='Done!', view=None
+       )
+       
+  return EditStepView()
