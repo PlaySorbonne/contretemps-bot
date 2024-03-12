@@ -133,6 +133,8 @@ class TaskLog(Base):
     ForeignKeyConstraint([project_id, member_id],
                          [Contributor.project_id, Contributor.member_id])
     
+    task : Mapped[Task] = relationship()
+    
     def __repr__(s):
       return (f'TaskLog(project={s.project_id}, task={s.task_title}, '
              +f'msg={s.log_message}, author=<@{s.member_id}>')

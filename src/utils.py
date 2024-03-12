@@ -22,7 +22,7 @@ from bot import bot
 async def fetch_channel_opt(cid):
     if cid is not None:
       try:
-        return await bot.get_channel(int(cid))
+        return bot.get_channel(int(cid))
       except NotFound:
         return None
     return None

@@ -16,6 +16,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 from datetime import datetime
+import pytz
 isotodt = datetime.fromisoformat
 from random import randint
 from sqlalchemy import select
@@ -25,6 +26,9 @@ from template import Engine, parser
 from commands.interactions.tasker import TaskInteractView
 
 
+def idt(iso, tz): #TODO this goes to utils.py and gets a better name
+  ret = datetime.fromisoformat(iso)
+  return pytz.timezone(tz).localize(ret)
 
 common_generic_context = {
   'less_than': (lambda a, b: a <= b),
@@ -33,7 +37,7 @@ common_generic_context = {
   'truncate': (lambda s, n: s[:n]),
   'length': len,
   'roll_dice': randint,
-  'now': (lambda : datetime.now()),
+  'now': (lambda : datetime.utcnow()),
   'full_date': (lambda d: f'<t:{int(d.timestamp())}:F>' if d else "(Pas de date)"),
   'relative_date': (lambda d: f'<t:{int(d.timestamp())}:R>' if d else "(Pas de date)"),
   'last_of': (lambda l: l[-1] if len(l) else None),
@@ -78,7 +82,9 @@ def make_common_project_context(s):
     'task_logs': (lambda t: list(s.scalars(ulog_select(t)))),
     'task_user_logs':
       (lambda t,u: list(s.scalars(ulog_select(t).filter_by(member_id=u.member_id)))),
-    'log_date': (lambda log: isotodt(log.timestamp) if log else None),
+    'log_date': (lambda log: 
+      idt(log.timestamp, log.task.project.server.timezone) if log else None
+     ),
     'log_message': (lambda log: log.log_message),
     'log_author': 
       (lambda log: s.get(Contributor, (log.member_id, log.project_id))),
