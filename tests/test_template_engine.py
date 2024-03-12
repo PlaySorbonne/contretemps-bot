@@ -29,7 +29,7 @@ t = """{% if 0 %}{{1}}{{2}} {% endif %}"""
 res = parser.parse(t)
 print(e.visit(res))
 
-res = parser.parse('{%foreach e in [1]%}gneu {{e}}gnee{%endfor%}DONEIT')
+res = parser.parse('{%foreach e in [1]%}{%endfor%}DONEIT')
 print(e.visit(res))
 
 res = parser.parse('[{%foreach e in [1,2,3,4,5] with sep ", "%}{{e}}{%endfor%}]')
@@ -38,6 +38,11 @@ print(e.visit(res))
 res = parser.parse('{%if any x in [1,1,1] where lt(10,x)%}hehe{%else%}hoho{%endif%}')
 print(e.visit(res))
 
+res = parser.parse('[{%foreach x in [1,2,3] where lt(x,3) with sep ", "%}{{x}}{%endfor%}]')
+print(e.visit(res)) 
+
+res = parser.parse('HEHE\\\nHOHO\\\\HUHU')
+print(e.visit(res))
 """
 delete from task;; delete from project ;; delete from task_step ;; delete from contributor ;; delete from task_veteran ;; delete from task_participant ;; delete from task_interested ;; delete from task_dependency ;; delete from project_alert ;; delete from task_log;;
 """
