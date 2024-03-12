@@ -18,7 +18,9 @@
 
 import discord
 
-bot = discord.Bot()
+intents = discord.Intents.default()
+intents.members = True
+bot = discord.Bot(intents=intents)
 server_notifiers = dict() # Maps each server (using its id) to an EventNotifier
 
 

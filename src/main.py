@@ -16,6 +16,8 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 
+import env
+from discord import utils, Permissions
 from bot import bot, server_notifiers
 from commands import calendar, tasker
 from event_notifier import EventNotifier
@@ -42,6 +44,13 @@ bot.add_cog(tasker.TaskerCommands(bot))
 ############################## END BOT SETUP ##################################
 
 ################################ BOT LAUNCH ###################################
-token = open('.discord_token', 'r').read()
+token = env.DISCORD_TOKEN
+client_id = env.CLIENT_ID
+oauth = utils.oauth_url(
+  client_id,
+  permissions=Permissions(18135567026240),
+  scopes=('bot', 'guilds.members.read'),
+)
+print("URL:", oauth)
 bot.run(token)
 ############################## END BOT LAUNCH #################################
