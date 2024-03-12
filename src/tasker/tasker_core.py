@@ -27,7 +27,7 @@ from discord import NotFound
 from database.tasker import *
 from database.base import ServerConnexion as Server
 from database.tools import get_or_create
-from utils import fetch_message_list_opt, fetch_message_opt
+from utils import fetch_message_list_opt, fetch_message_opt, fetch_channel_opt
 from database import engine
 from bot import bot
 from commands.interactions.tasker import TaskInteractView
@@ -149,7 +149,6 @@ async def create_task(guild_id, project_name, task, s=None):
   forum = await bot.fetch_channel(int(proj.forum_id))
   thread = await forum.create_thread(name=task.title, content='placeholder')
   desc_message = await create_empty_messages(thread)
-  #desc_message = await thread.send(content='placeholder')
   task.main_message_id = str(thread.starting_message.id)
   task.sec_message_id = ';'.join(str(x.id) for x in desc_message)
   task.thread_id = str(thread.id)
@@ -193,6 +192,24 @@ async def bulk_create_tasks(guild_id, project_name, tasks):
         raise TaskAlreadyExists(t.title)
     for task in tasks:
       await create_task(guild_id, project_name, task, s)
+    s.flush()#TODO update every task's message after this :>
+    if p.main_thread:
+      await update_main_thread(p, s)
+
+async def update_advancement(task, advancement, s):
+  task.advancement = advancement
+  await update_task_messages(task, s)
+  if advancement >= 100:
+    for alert in task.project.alerts:
+      if alert.kind == ProjectAlert.ON_COMPLETE:
+        message = make_task_change_message(
+          task, s, 'complete', alert.template
+        )
+        channel = await fetch_channel_opt(alert.channel_id)
+        await channel.send(**message) #TODO message too long
+    for task2 in task.successors:
+      if all(k.advancement >= 100 for k in task.predecessors):
+        await update_task_messages(task2, s)
 
 async def has_main_thread(guild_id, project_name):
   with Session(engine) as s, s.begin():
@@ -258,7 +275,17 @@ async def update_main_thread(
   main_message=None,
   sec_messages=None
 ):
-  #TODO check Nones
+  if s is None:
+    with Session(engine) as s, s.begin():
+      return await update_main_thread(
+        proj, s,thread, main_message, sec_messages
+      )
+  if thread is None:
+    thread = await bot.fetch_channel(int(proj.main_thread))
+    main_message = await thread.fetch_message(int(proj.main_message))
+    sec_messages = [ #TODO handle multiple messages
+      await thread.fetch_message(int(proj.sec_messages.split(';')[0]))
+    ]
   msg = make_main_thread_message(proj, s)
   msg2 = make_sec_thread_message(proj, s)
   await main_message.edit(**msg)
