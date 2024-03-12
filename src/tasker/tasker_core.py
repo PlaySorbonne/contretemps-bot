@@ -373,6 +373,16 @@ async def update_task_secondary_message(task,s):
 def is_task_thread(thread_id):
   return find_task_by_thread(thread_id) is not None
 
+async def add_step(thread_id, description, n, kind):
+ with Session(engine) as s, s.begin():
+   task = find_task_by_thread(thread_id, s)
+   task.steps.append(TaskStep(
+    step_description=description,
+    step_number=n,
+    kind=kind
+   ))
+   await update_task_messages(task, s)
+
 def create_project_alert(
   guild_id, project_name, channel_id,
   alert_id, kind, freq=None, template=None, start=None

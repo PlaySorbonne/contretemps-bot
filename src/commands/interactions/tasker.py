@@ -141,6 +141,17 @@ class TaskInteractView(View): #TODO SANITIZE ALL USER INPUT
       ephemeral=True, 
       view=EditStepView(interaction.channel_id)
     )
+  @button(
+    label='Nouvelle étape',
+    custom_id='add_step_button',
+    style=ButtonStyle.green,
+    row=3
+  )
+  async def add_step_callback(self, button, interaction):
+    await interaction.response.send_message(
+      'C:', ephemeral=True,
+      view=AddStepView()
+    )
 
 
 def EditStepView(thread_id):
@@ -237,3 +248,64 @@ def EditStepView(thread_id):
        )
        
   return EditStepView()
+
+class AddStepView(View):
+  def __init__(self):
+    super().__init__()
+    self.desc = None
+    self.step = None
+    self.show = (
+      "**Message:** {}\n**Étape:** {}\n"
+     +"Pour créer une remarque, ne précisez pas d'étape."
+    )
+  
+  @button(label='Mettre description de tâche/remarque')
+  async def desc_callback(self, button, interaction):
+    async def cback(self2, interaction2):
+      self.desc = self2.children[0].value
+      await interaction2.response.defer()
+      await interaction.edit_original_response(
+        content=self.show.format(self.desc or "Rien", self.step or "Rien"),
+        view=self
+      )
+    m = ActionModal('Entrez la description', cback, 'C:')
+    await interaction.response.send_modal(m)
+  
+  @button(label='Mettre un numéro d\'étape')
+  async def step_callback(self, button, interaction):
+    async def cback(self2, interaction2):
+     a = self2.children[0].value
+     try:
+       a = float(a)
+       self.step = a
+       await interaction2.response.defer()
+       await interaction.edit_original_response(
+        content=self.show.format(self.desc or "Rien", self.step or "Rien"),
+        view=self
+      )
+     except ValueError:
+       return await interaction2.response.send_message(
+          f'Erreur! Il faut mettre un nombre à virgure',
+          ephemeral=True
+       )
+    modal = ActionModal('Entrez un numéro d\'étape', cback, "2, 3.8, etc")
+    await interaction.response.send_modal(modal)
+  
+  @button(label='Valider', style=ButtonStyle.green)
+  async def end_callback(self, button, interaction):
+    if self.desc is None:
+      return await interaction.response.send_message(
+        "Il faut d'abord mettre un message!",
+        ephemeral=True
+      )
+    kind = TaskStep.REMARK if self.step is None else TaskStep.SUBTASK
+    await tasker_core.add_step(
+      interaction.channel_id,
+      self.desc,
+      self.step,
+      kind
+    )
+    await interaction.response.edit_message(
+      content="Fait!",
+      view=None
+    )
