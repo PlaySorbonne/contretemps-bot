@@ -378,9 +378,11 @@ async def check_step(step_id):
 async def update_task_secondary_message(task,s):
   #TODO : handle long messages
   msg = make_sec_task_message(task, s)
-  fst_id = task.sec_message_id.split(';')[0]
-  old = await fetch_message_opt(task.thread_id, fst_id)
-  await old.edit(**msg)
+  task.sec_message_id = await publish_long_message(
+    task.sec_message_id,
+    task.thread_id,
+    msg
+  )
 
 def is_task_thread(thread_id):
   return find_task_by_thread(thread_id) is not None
