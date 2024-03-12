@@ -389,6 +389,9 @@ async def add_dependency(thread_1, thread_2):
    t2 = find_task_by_thread(thread_2, s)
    if t2 not in t1.predecessors:
      t1.predecessors.append(t2)
+   else:
+     t1.predecessors.remove(t2)
+   await update_task_messages(t1, s) 
 
 def create_project_alert(
   guild_id, project_name, channel_id,

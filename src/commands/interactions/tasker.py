@@ -154,7 +154,7 @@ class TaskInteractView(View): #TODO SANITIZE ALL USER INPUT
     )
   
   @button(
-    label='Ajouter une dépendance',
+    label='Ajouter/Retirer dépendance',
     row=3,
     custom_id='add_dependency_button',
   )
