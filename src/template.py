@@ -166,7 +166,9 @@ class Engine(Interpreter):
       new = {ids[i] : T[i] for i in range(n)} if n > 1 else {ids[0]:T}
       self.stack.append(LvlDict(self.stack[-1], new))
       if not tree.children[2] or self.visit(tree.children[2]):
-        res += [self.visit(child) for child in tree.children[4:]]
+        res.append(''.join(
+          str(self.visit(child)) for child in tree.children[4:])
+        )
       self.stack.pop()
     return sep.join(str(e) for e in res)
   
@@ -210,7 +212,7 @@ class Engine(Interpreter):
     except Exception:
       return float(n.children[0])
   def estring(self, s):
-    return s.children[0][1:-1]
+    return (s.children[0][1:-1]).encode('utf-8').decode('unicode_escape')
   def id(self, tree):
     ctx = self.stack[-1]
     return ctx[tree.children[0][:]]
