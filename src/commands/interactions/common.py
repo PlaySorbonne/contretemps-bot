@@ -50,19 +50,48 @@ def access_control(lvl):
     return dec 
 
 
-def ActionModal(lbl, cback, title):
+def ActionModal(lbl, cback, title, try_mentions=True):
     """
     Generic reframing of a Modal allowing to 
     specify the action taken with the text entered
     as a parameter in the "constructor"
     """
+    
     class ActionModal(discord.ui.Modal):
         def __init__(self):
             super().__init__(title=title)
             
             self.add_item(discord.ui.InputText(label=lbl, style=discord.InputTextStyle.long))
         
-        callback = cback
+        async def callback(self, interaction):
+          if try_mentions:
+            self.add_item(discord.ui.InputText(
+              value=' '.join(
+                [await self.try_conversion_to_mention(x[1:], interaction.guild)
+                if x and x[0] == '@' else x
+                for x in str(self.children[0].value).split(' ')]
+              ), label='text_with_mentions'
+            ))
+            self.remove_item(self.children[0])
+          await cback(self, interaction)
+        
+        async def try_conversion_to_mention(self, member, guild):
+          try:
+            member_id = int(member)
+            user = guild.get_member(member_id)
+            if user: return user.mention
+            user = guild.get_role(member_id)
+            if user: return user.mention
+          except Exception:
+            pass
+          finally:
+            user = discord.utils.get(guild.members, name=member)
+            if user:
+              return user.mention
+            role = discord.utils.get(await guild.fetch_roles(), name=member)
+            if user:
+              return role.mention
+            return '@'+member
     return ActionModal()
 
 
@@ -123,25 +152,34 @@ def paginated_selector(name, options, to_str, row, page_len=23):
 
 
 class DangerForm(discord.ui.View):
-    def __init__(self, action):
+    def __init__(self, action, double_check=True):
         self.action = action
+        self.double_check = double_check
         super().__init__()
     @discord.ui.button(
         label='CONFIRM (BE CAREFUL PLEASE)',
         style=discord.ButtonStyle.danger
     )
     async def button_callback(self, button, interaction):
+        if self.action is None:
+          return await interaction.response.send_message(
+            "Ce bouton a déjà été utilisé, supprimez-le please!",
+            ephemeral=True
+          )
         async def cback(self2, interaction2):
             if self2.children[0].value == 'YES I AM SURE':
                 await interaction2.response.defer(ephemeral=True)
                 await self.action()
                 await interaction2.followup.send("Succeeded.", ephemeral=True)
-                try: await self.message.delete()
-                except Exception: pass
+                self.action = None
             else:
                 await interaction2.response.send_message("Bad confirmation", ephemeral=True)
                 await self.message.delete()
         modal = ActionModal('DANGER', cback, "WRITE 'YES I AM SURE' TO CONFIRM")
-        await interaction.response.send_modal(modal)
-
+        if self.double_check:
+          await interaction.response.send_modal(modal)
+        else:
+          await self.action()
+          await interaction.response.send_message("Fait!", ephemeral=True)
+          self.action = None
 ################### END GENERIC/COMMON PARTS FOR COMMANDS #####################
