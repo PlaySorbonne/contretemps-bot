@@ -141,7 +141,7 @@ def remove_project_role(guild_id, project_name, role):
 
 class TaskAlreadyExists(Exception):
   pass
-async def create_task(guild_id, project_name, task, s=None):
+async def create_task(guild_id, project_name, task, s=None, upd=True):
   if s is None:
    with Session(engine) as s, s.begin():
     return await create_task(guild_id, project_name, task, s)
@@ -167,7 +167,8 @@ async def create_task(guild_id, project_name, task, s=None):
     channel = await bot.fetch_channel(str(alert.channel_id))
     await channel.send(**msg)
     
-  await update_task_messages(task, s, thread.starting_message, desc_message[0]) #TODO handle multiple messages
+  if upd:
+    await update_task_messages(task, s, thread.starting_message, desc_message[0]) #TODO handle multiple messages
 
 async def update_task_messages(task, s=None, main=None, sec=None):
   if s is None:
@@ -194,10 +195,15 @@ async def bulk_create_tasks(guild_id, project_name, tasks):
       ).first() is not None:
         raise TaskAlreadyExists(t.title)
     for task in tasks:
-      await create_task(guild_id, project_name, task, s)
-    s.flush()#TODO update every task's message after this :>
+      await create_task(guild_id, project_name, task, s, upd=True)
+    s.flush()
     if p.main_thread:
       await update_main_thread(p, s)
+
+async def update_task_of(thread):
+  with Session(engine) as s, s.begin():
+    task = find_task_by_thread(thread, s)
+    await update_task_messages(task, s)
 
 async def update_advancement(task, advancement, s):
   task.advancement = advancement

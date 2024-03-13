@@ -50,7 +50,7 @@ class EventNotifier:
             self.connect(state.gtoken)
             self.check_summaries.start()
             session.commit()
-        print("Succesfully configured", self.__name)
+        print("Succesfully configured", self.__name, self.__server_id)
         
         
     def connect(self, tok):

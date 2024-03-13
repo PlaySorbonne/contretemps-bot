@@ -1,5 +1,3 @@
-**Description**
-{{task_description(task)}}
 {% if task_sub_steps(task) %}
 **Étapes**
 {% foreach (step) in task_sub_steps(task) with sep "\n" %}

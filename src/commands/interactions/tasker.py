@@ -166,7 +166,15 @@ class TaskInteractView(View): #TODO SANITIZE ALL USER INPUT
       'C:', ephemeral=True,
       view=AddDependencyView(interaction.channel_id)
     )
-
+  
+  @button(
+    label='Mettre à jour message',
+    row=4,
+    custom_id='updmsg'
+  )
+  async def upd_callback(self, button, interaction):
+    await tasker_core.update_task_of(interaction.channel_id)
+    await interaction.response.send_message('Done!', ephemeral=True)
 
 def EditStepView(thread_id):
   with Session(engine) as s:
