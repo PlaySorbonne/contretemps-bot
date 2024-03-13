@@ -180,7 +180,7 @@ async def update_task_messages(task, s=None, main=None, sec=None):
   new_messages = await publish_long_message(task.main_message_id, task.thread_id, main_message_components)
   task.main_message_id = new_messages
   task.sec_messages = await publish_long_message(
-    task.sec_messages,
+    task.sec_message_id,
     task.thread_id,
     sec_message_components
   )
