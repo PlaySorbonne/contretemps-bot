@@ -25,7 +25,7 @@ Nécessite de finir : {%foreach (pred) in predecessors(task) %}{{task_thread(pre
 
 
 # Équipe
-**Je participe :FOK: : ** {%foreach (p) in participants(task) %}
+**Je participe <:FOK:1118995456102518816> : ** {%foreach (p) in participants(task) %}
 {{user_mention(p)}}. {%endfor%}
 
 **Je voudrais participer mais je ne sais pas faire : ** {%foreach (p) in interested(task) %}

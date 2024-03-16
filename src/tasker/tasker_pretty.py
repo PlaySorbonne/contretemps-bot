@@ -60,7 +60,12 @@ def make_common_project_context(s):
     'task_name': (lambda t: t.title),
     'task_thread': (lambda t: f'<#{t.thread_id}>'),
     'task_sub_steps':
-      (lambda t: [x for x in t.steps if x.kind == TaskStep.SUBTASK]),
+      (lambda t: 
+        sorted(
+          [x for x in t.steps if x.kind == TaskStep.SUBTASK],
+          key=lambda x : x.step_number
+        )
+      ),
     'task_remark_steps':
       (lambda t: [x for x in t.steps if x.kind == TaskStep.REMARK]),
     'task_all_steps': (lambda t: t.steps),

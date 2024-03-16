@@ -1,5 +1,12 @@
 # Liste des tâche orphelines
 
 {%foreach (t) in unfinished_tasks %}
--**{{task_name(t)}}**, à trouver ici {{task_thread(t)}}
+{%if all x in predecessors(t) where less_than(100, task_percentage(x))%}
+{%if not(task_start(t)) %}
+-**{{task_name(t)}}**, à trouver ici {{task_thread(t)}}, sans contrainte de temps
+{%else%}{%if less_than(task_start(t), now()) %}
+-**{{task_name(t)}}**, à trouver ici {{task_thread(t)}}, disponible depuis {{relative_date(task_start(t))}}
+{%endif%}
+{%endif%}
+{%endif%}
 {%endfor%}
