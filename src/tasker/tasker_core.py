@@ -341,7 +341,8 @@ async def remove_task_contributor(Kind, task, member_id, s=None):
      s.add(task)
      return await remove_task_contributor(Kind, task, member_id, s=s)
   contributor = s.get(Contributor, (str(member_id), task.project_id))
-  contributor.tasks(Kind).remove(task)
+  if task in contributor.tasks(Kind):
+    contributor.tasks(Kind).remove(task)
   await update_task_messages(task, s=s)
 
 async def task_user_log(task, contributor, message, s):

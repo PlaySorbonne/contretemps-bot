@@ -37,22 +37,30 @@ class TaskInteractView(View): #TODO SANITIZE ALL USER INPUT
   async def common_choice_declaration(self, interaction, Kind):
     await interaction.response.defer(ephemeral=True)
     async with lock:
-      with Session(engine) as s, s.begin():
+     with Session(engine) as s, s.begin():
        user_id, channel_id = interaction.user.id, interaction.channel_id
        task = tasker_core.find_task_by_thread(str(channel_id), s=s)
-       if tasker_core.is_task_contributor(Kind, str(user_id), task, s=s):
-         async def act():
-          await tasker_core.remove_task_contributor(Kind, task, str(user_id))
-         what = {TaskParticipant:"participant.e", TaskInterested:"interessé.e",
-                 TaskVeteran:"pouvant aider"}
-         return await interaction.followup.send(
-           content=(f'{interaction.user.mention}, confirmes-tu vouloir ne plus être '
-                   +f'considéré.e comme {what[Kind]} pour la tâche "{task.title}" ?'),
-           view=DangerForm(act, double_check=False),
-           ephemeral=True
-         )
-       await tasker_core.add_task_contributor(Kind, task, str(user_id),s=s)
-      await interaction.followup.send("Done!", ephemeral=True) #TODO better message
+       task_id = (task.project_id, task.title)
+       task_title = task.title
+       contrib=tasker_core.is_task_contributor(Kind, str(user_id), task, s=s)
+     if contrib:
+       async def act():
+        async with lock:
+          with Session(engine) as s, s.begin():
+           task = tasker_core.find_task_by_thread(str(channel_id), s=s)
+           await tasker_core.remove_task_contributor(Kind, task, str(user_id),s)
+       what = {TaskParticipant:"participant.e", TaskInterested:"interessé.e",
+               TaskVeteran:"pouvant aider"}
+       return await interaction.followup.send(
+         content=(f'{interaction.user.mention}, confirmes-tu vouloir ne plus être '
+                 +f'considéré.e comme {what[Kind]} pour la tâche "{task_title}" ?'),
+         view=DangerForm(act, double_check=False),
+         ephemeral=True
+       )
+     with Session(engine) as s, s.begin():
+      task = tasker_core.find_task_by_thread(str(channel_id), s=s)
+      await tasker_core.add_task_contributor(Kind, task, str(user_id), s=s)
+     await interaction.followup.send("Done!", ephemeral=True) #TODO better message
   
   #TODO emojis :-)
   @button(label='Je participe!', custom_id='choose_task_button', style=ButtonStyle.primary, row=0)
@@ -214,8 +222,9 @@ def EditStepView(thread_id):
            "Il faut d'abord choisir une tâche!",
            ephemeral=True
          )
+       await interaction.response.defer()
        await tasker_core.delete_step(self.step)
-       await interaction.response.edit_message(view=None, content='Fait!')
+       await interaction.edit_original_response(view=None, content='Fait!')
      
      @button(
        label = f'Changer numéro',
@@ -242,7 +251,7 @@ def EditStepView(thread_id):
            await interaction2.response.defer()
          except ValueError:
            return await interaction2.response.send_message(
-              f'Erreur! Il faut mettre un nombre à virgure',
+              f'Erreur! Il faut mettre un nombre (0, -7, 8.45, etc...)',
               ephemeral=True
            )
        modal = ActionModal('Entrez un numéro d\'étape', cback, "2, 3.8, etc")
@@ -264,8 +273,9 @@ def EditStepView(thread_id):
            "Impossible de changer le numéro d'une remarque",
            ephemeral=True
          )
+       await interaction.response.defer()
        await tasker_core.check_step(self.step)
-       await interaction.response.edit_message(
+       await interaction.edit_original_response(
          content='Done!', view=None
        )
        
@@ -307,7 +317,7 @@ class AddStepView(View):
       )
      except ValueError:
        return await interaction2.response.send_message(
-          f'Erreur! Il faut mettre un nombre à virgure',
+          f'Erreur! Il faut mettre un nombre (0, -7, 8.45, etc...)',
           ephemeral=True
        )
     modal = ActionModal('Entrez un numéro d\'étape', cback, "2, 3.8, etc")
