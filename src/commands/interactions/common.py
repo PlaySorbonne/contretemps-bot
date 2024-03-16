@@ -114,7 +114,7 @@ def paginated_selector(name, options, to_str, row, page_len=23):
     def make_options(p_n):
         return [
             discord.SelectOption(
-                label=to_str2(options[p_n][i], i, len(options[p_n])),
+                label=to_str2(options[p_n][i], i, len(options[p_n]))[:100],
                 value=str(i)
             )
             for i in range(len(options[p_n])) 
@@ -182,7 +182,8 @@ class DangerForm(discord.ui.View):
         if self.double_check:
           await interaction.response.send_modal(modal)
         else:
+          await interaction.response.defer()
           await self.action()
-          await interaction.response.edit_message(content="Fait!", view=None)
+          await interaction.edit_original_response(content="Fait!", view=None)
           self.action = None
 ################### END GENERIC/COMMON PARTS FOR COMMANDS #####################
