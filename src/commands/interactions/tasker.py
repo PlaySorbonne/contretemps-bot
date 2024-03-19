@@ -20,6 +20,7 @@ from discord import ButtonStyle
 import discord
 from sqlalchemy.orm import Session
 import asyncio
+from datetime import datetime
 
 from tasker import tasker_core, tasker_graph
 from database import engine
@@ -88,7 +89,7 @@ class TaskInteractView(View): #TODO SANITIZE ALL USER INPUT
        member_id=user, project_id=task.project_id
       )
       if (
-        task in who.current_tasks or task in who.interesting_tasks
+        task in who.current_tasks
         or who.project_admin
       ):
         async def cback(self2, interaction2):
@@ -104,10 +105,23 @@ class TaskInteractView(View): #TODO SANITIZE ALL USER INPUT
         await interaction.response.send_modal(modal)
       else:
         await interaction.response.send_message(
-          "Seule un.e admin/une personne qui participe ou aide à la tâche"
-          " peut écrire dans le journal",
+          "Seule une personne qui participe à la tâche/un.e admin"
+          +" peut écrire dans le journal",
           ephemeral=True
         )
+  @button(
+    label='Modifier entrée Journal',
+    custom_id='edit_log_button',
+    style=ButtonStyle.gray,
+    row=1
+  )
+  async def edit_log_callback(self, button, interaction):
+    await interaction.response.send_message(
+      f'<@{interaction.user.id}>, choisissez une entrée à modifier',
+      view=EditLogView(interaction.channel_id, interaction.user.id),
+      ephemeral=True
+    )
+  
   @button(
     label='Pourcentage d\'avancement',
     custom_id='percentage_button',
@@ -287,6 +301,80 @@ def EditStepView(thread_id, what):
          )
      
   return EditStepView()
+
+def EditLogView(thread_id, user_id):
+  with Session(engine) as s:
+    task = tasker_core.find_task_by_thread(str(thread_id), s)
+    d = datetime.fromisoformat
+    options = [
+      ((l.project_id, l.task_title, l.timestamp, l.member_id),
+       f'{d(l.timestamp).date().isoformat()}: {l.log_message}'
+      )
+      for l in task.logs[::-1]
+      if l.log_type == TaskLog.USER_LOG and l.member_id == str(user_id)
+    ]
+    msgs = { (l.project_id, l.task_title, l.timestamp, l.member_id)
+             : l.log_message for l in task.logs }
+    
+  
+  class EditLogView(View):
+    def __init__(self):
+      super().__init__()
+      self.log = -1
+  
+    @paginated_selector(
+      name = "Choisir une entrée",
+      row = 0,
+      options = options,
+      to_str = lambda x: x[1]
+    )
+    async def log_choose_cαllback(self, select, interaction, value):
+      select.placeholder = value[1]
+      self.log = value[0]
+      await interaction.response.send_message(
+        content=msgs[value[0]],
+        ephemeral=True
+      )
+    
+    @button(
+      label = 'Modifier',
+      row = 1,
+      style=discord.ButtonStyle.red
+    )
+    async def edit_callback(self, button, interaction):
+      if self.log == -1:
+         return await interaction.response.send_message(
+           "Il faut d'abord en choisir une!",
+           ephemeral=True
+         )
+      async def cback(self2, interaction2):
+        await interaction2.response.defer()
+        async with lock:
+          await tasker_core.edit_log_message(self.log, self2.children[0].value)
+        await interaction.edit_original_response(content="Done!", view=None)
+      m = ActionModal('Entrez la nouvelle version de l\'entrée', cback, '.')
+      await interaction.response.send_modal(m)
+    
+    @button(
+      label = 'Supprimer',
+      row = 1,
+      style=discord.ButtonStyle.red
+    )
+    async def delete_callback(self, button, interaction):
+      if self.log == -1:
+         return await interaction.response.send_message(
+           "Il faut d'abord en choisir une!",
+           ephemeral=True
+         )
+      async with lock:
+        await interaction.response.defer()
+        await tasker_core.delete_log_message(self.log)
+        await interaction.edit_original_response(
+          view=None, content='Fait!'
+        )
+  
+  return EditLogView()
+
 
 class AddStepView(View):
   def __init__(self):

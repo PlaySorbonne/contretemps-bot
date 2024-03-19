@@ -414,6 +414,19 @@ async def add_dependency(thread_1, thread_2):
      t1.predecessors.remove(t2)
    await update_task_messages(t1, s) 
 
+async def edit_log_message(log_key, new_message):
+  with Session(engine) as s, s.begin():
+    log = s.get(TaskLog, log_key)
+    if log:
+      log.log_message = new_message
+    await update_task_secondary_message(log.task, s)
+async def delete_log_message(log_key):
+  with Session(engine) as s, s.begin():
+    log = s.get(TaskLog, log_key)
+    if log:
+      s.delete(log)
+    await update_task_secondary_message(log.task, s)
+
 def create_project_alert(
   guild_id, project_name, channel_id,
   alert_id, kind, freq=None, template=None, start=None
