@@ -90,6 +90,9 @@ class Task(Base):
         primaryjoin=and_(title == TaskDependency.task1,project_id == TaskDependency.project_id),
         secondaryjoin=and_(title == TaskDependency.task2, project_id == TaskDependency.project_id),
         backref='predecessors')
+    logs : Mapped[List['TaskLog']] = relationship(
+      back_populates='task',
+      order_by='TaskLog.timestamp')
     
     def __repr__(s):
       return f"Task(project={s.project_id}, title='{s.title}')"
@@ -133,7 +136,7 @@ class TaskLog(Base):
     ForeignKeyConstraint([project_id, member_id],
                          [Contributor.project_id, Contributor.member_id])
     
-    task : Mapped[Task] = relationship()
+    task : Mapped[Task] = relationship(back_populates='logs')
     
     def __repr__(s):
       return (f'TaskLog(project={s.project_id}, task={s.task_title}, '

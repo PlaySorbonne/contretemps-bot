@@ -108,6 +108,8 @@ def make_global_project_context(s, p):
     'all_tasks': p.tasks,
     'unfinished_tasks':[t for t in p.tasks if t.advancement<100],
     'finished_tasks': [t for t in p.tasks if t.advancement>=100],
+    'project_contributors' : p.contributors,
+    'project_admins' : [x for x in p.contributors if x.project_admin]
   }
   return context
 

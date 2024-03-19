@@ -97,7 +97,7 @@ template_grammar = r"""
     _SEP: WS? "sep"i WS?
     _WITH: WS? "with"i WS?
     _ANY: WS? "any"i WS?
-    _ALL: WS? "all"i WS?
+    _ALL: WS? "all"i WS
     _WHERE: WS? "where"i WS?
     SPECIAL_ESCAPE: "\\\\"|"\\\n"
 """

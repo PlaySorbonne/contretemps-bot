@@ -1,5 +1,5 @@
-# Liste des tâche orphelines
 
+# Liste des tâche orphelines
 {%foreach (t) in unfinished_tasks %}
 {%if all x in predecessors(t) where less_than(100, task_percentage(x))%}
 {%if not(task_start(t)) %}
@@ -9,4 +9,9 @@
 {%endif%}
 {%endif%}
 {%endif%}
+{%endfor%}
+
+# Demandes de plus d'infos
+{%foreach t in all_tasks where veterans(t)%}
+-{%foreach i in veterans(t) with sep " et "%}{{user_mention(i)}} {%endfor%} demande(nt) plus d'infos pour la tâche {{task_thread(t)}}.
 {%endfor%}
