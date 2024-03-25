@@ -1,3 +1,8 @@
+{% if task_description(task) %}
+**Description:** {{task_description(task)}}
+{%else%}
+No description hehehe.
+{%endif%}
 {% if task_sub_steps(task) %}
 **Étapes**
 {% foreach (step) in task_sub_steps(task) with sep "\n" %}
