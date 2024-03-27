@@ -55,6 +55,7 @@ async def purge_opt_message_list(l):
 async def publish_long_message(messages, channel_id, what):
   MAX_MESSAGE_ALLOWED=1750
   messages = messages.split(';')
+  if not what['content'].strip(): what['content']='empty message'
   old_len_messages = len(messages)
   assert old_len_messages # at least one message ?
   try:
@@ -70,7 +71,7 @@ async def publish_long_message(messages, channel_id, what):
       )
     channel = await fetch_channel_opt(channel_id)
     if len(what['content'])>MAX_MESSAGE_ALLOWED:
-      lines = what['content'].split('\n')[::-1]
+      lines = what['content'].strip().split('\n')[::-1]
       good_contents = []
       while lines:
         base = lines.pop()
@@ -85,7 +86,7 @@ async def publish_long_message(messages, channel_id, what):
           base_string = ""
           while lines and len(base_string) + len(lines[-1]) <= MAX_MESSAGE_ALLOWED:
             base_string += lines.pop()+'\n'
-          good_contents.append(base_string)
+          if base_string.strip(): good_contents.append(base_string)
       n_messages = len(good_contents)
       if n_messages > len(messages):
         for _ in range(n_messages-len(messages)):
@@ -116,7 +117,9 @@ async def publish_long_message(messages, channel_id, what):
       )
     for k in range(n_messages, len(messages)):
       msg = await fetch_message_opt(channel_id, messages[k])
-      await msg.edit(content='(Message pour des raisons logistiques) <:')
+      assert k > 0, f"publish_long_message(channel_id={channel_id}): 0 message"
+      await msg.delete()
+    messages = messages[:n_messages]
     return ';'.join(messages)
   except Exception as e:
     print(f"Exception on time {datetime.utcnow()} on publish_long_message")
