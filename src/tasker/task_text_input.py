@@ -75,9 +75,9 @@ class TaskMaker(Transformer):
     ref = lambda self, items : ("ref", items[0])
     subtask = lambda self, items : (TaskStep.SUBTASK,float(items[0][:]),items[1])
     remark = lambda self, items : (TaskStep.REMARK, None, items[0])
-    startdate = lambda self, items : ("starts_after", items[0])
-    enddate = lambda self, items : ("ends_before", items[0])
-    beforedate = lambda self, items : ("urgent_after", items[0])
+    startdate = lambda self, items : ("starts_after", items[0].strip())
+    enddate = lambda self, items : ("ends_before", items[0].strip())
+    beforedate = lambda self, items : ("urgent_after", items[0].strip())
     dependency = lambda self, items : items[0]
     
     def steps(self, items):
@@ -104,7 +104,8 @@ class TaskMaker(Transformer):
         tasks[ref] = new_task
       for (new_task, _, deps) in items:
         for dep in deps:
-          tasks[dep].successors.append(new_task)
+          if dep in tasks:
+            tasks[dep].successors.append(new_task)
       return tasks.values()
     
 
