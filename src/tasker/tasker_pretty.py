@@ -85,9 +85,9 @@ def make_common_project_context(s):
     'step_desc': (lambda s: s.step_description),
     'step_number': (lambda s: s.step_number),
     'step_done': (lambda s: s.done),
-    'task_logs': (lambda t: list(s.scalars(ulog_select(t)))),
+    'task_logs': (lambda t: list(t.logs)),
     'task_user_logs':
-      (lambda t,u: list(s.scalars(ulog_select(t).filter_by(member_id=u.member_id)))),
+      (lambda t,u: list(x for x in t.logs if x.member_id == u.member_id)),
     'log_date': (lambda log: 
       idt(log.timestamp, log.task.project.server.timezone) if log else None
      ),
@@ -95,6 +95,9 @@ def make_common_project_context(s):
     'log_author': 
       (lambda log: s.get(Contributor, (log.member_id, log.project_id))),
     'user_mention': (lambda u: f'<@{u.member_id}>'),
+    'user_tasks': (lambda u: u.tasks(TaskParticipant)),
+    'user_interested': (lambda u: u.tasks(TaskInterested)),
+    'user_asksinfo': (lambda u: u.tasks(TaskVeteran)),
     'participants': (lambda t: t.active),
     'interested': (lambda t: t.interested),
     'veterans':(lambda t:t.veterans),
@@ -182,5 +185,17 @@ def make_sec_thread_message(project, s, template=None):
   )
   if template is None:
     template = open('./src/ressources/default_project_sec_message.template').read()
+  engine = Engine(context)
+  return {'content': engine.visit(parser.parse(template))}
+
+def make_personnal_summary_message(project, contributor, s, template=None):
+  context = (
+    make_common_project_context(s) |
+    common_generic_context |
+    make_global_project_context(s, project) |
+    {'who' : contributor}
+  )
+  if template is None:
+    template = open('./src/ressources/default_personnal_summary.template').read()
   engine = Engine(context)
   return {'content': engine.visit(parser.parse(template))}

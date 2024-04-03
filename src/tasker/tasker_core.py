@@ -452,6 +452,14 @@ async def validate_template(guild_id, project_name, template, context=None):
     #TODO: try to load the template (like execute the msg generating function, without the message publishing function, and return the message to the caller)
     #TODO: actually maybe just replace this function alltogether with the message generating function, that either generates the message or throws the appropriate exceptions!
 
+def contributor_summary_message(guild_id, project_name, contributor_id):
+  with Session(engine) as s:
+    p = _get_project(s, guild_id, project_name)
+    c = s.get(Contributor, (str(contributor_id), p.project_id))
+    if c is not None:
+      return make_personnal_summary_message(p, c, s)
+    return {'content': 'Vous ne faites pas partie de ce projet.'}
+
 @tasks.loop(seconds=10)#TODO : 60)
 async def do_reminders():
  with Session(engine) as s, s.begin():

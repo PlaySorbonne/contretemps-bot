@@ -345,3 +345,13 @@ class TaskerCommands(commands.Cog):
     await tasker_core.update_main_thread_of(project, ctx.guild.id)
     await ctx.respond('Fait!')
   
+  @commands.slash_command(description='Summary of your tasks in a project')
+  @project_checks(admin=False)
+  async def personnal_project_summary(self, ctx,
+    project : Option(str, autocomplete=autocomp(get_projects))
+  ):
+    await ctx.defer(ephemeral=True)
+    msg = tasker_core.contributor_summary_message(
+      ctx.guild.id, project, ctx.user.id
+    )
+    await ctx.respond(**msg)
