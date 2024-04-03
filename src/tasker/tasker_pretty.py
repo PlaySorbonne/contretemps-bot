@@ -34,6 +34,7 @@ common_generic_context = {
   'less_than': (lambda a, b: a <= b),
   'and': (lambda a, b: a and b),
   'not': (lambda t: not t),
+  'eq': (lambda u, v: u == v),
   'truncate': (lambda s, n: s[:n]),
   'length': len,
   'roll_dice': randint,

@@ -237,7 +237,7 @@ def EditStepView(thread_id, what):
        to_str = lambda x: x[1]
      )
      async def task_choose_callback(self, select, interaction, value):
-       select.placeholder = value[1]
+       select.placeholder = value[1][:149]
        self.step = value[0]
        await interaction.response.edit_message(view=self)
      
@@ -329,7 +329,7 @@ def EditLogView(thread_id, user_id):
       to_str = lambda x: x[1]
     )
     async def log_choose_cαllback(self, select, interaction, value):
-      select.placeholder = value[1]
+      select.placeholder = value[1][:149]
       self.log = value[0]
       await interaction.response.send_message(
         content=msgs[value[0]],

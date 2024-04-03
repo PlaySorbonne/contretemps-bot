@@ -1,15 +1,17 @@
 {% if task_description(task) %}
 **Description:** {{task_description(task)}}
 {%else%}
-No description hehehe.
+.
 {%endif%}
 {% if task_sub_steps(task) %}
 **Étapes**
 {% foreach (step) in task_sub_steps(task) with sep "\n" %}
 {{step_number(step)}}- {{step_desc(step)}} {%if step_done(step)%} :white_check_mark: {%else%} ☐ {%endif%}
 {% endfor %}
+{% endif %}
 
 **Remarques**
+{% if task_remark_steps(task) %}
 {% foreach (ps) in task_remark_steps(task) %}
 -{{step_desc(ps)}}
 {% endfor %}
