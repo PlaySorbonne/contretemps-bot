@@ -105,7 +105,7 @@ class TaskerCommands(commands.Cog):
   @access_control(2)
   async def timezone(self, #TODO this belongs in common
     ctx,
-    timezone : Option(str, autocomplete=autocomp(get_timezones))
+    timezone : Option[str, autocomplete=autocomp(get_timezones)]
   ):
     if timezone not in pytz.all_timezones:
       return await ctx.respond(
@@ -138,9 +138,9 @@ class TaskerCommands(commands.Cog):
   async def set_project_remainder(
     self,
     ctx,
-    project : Option(str, autocomplete=autocomp(get_projects)),
+    project : Option[str, autocomplete=autocomp(get_projects)],
     reminder : TimeDelta,
-    template : Option(Attachment, default=None)
+    template : Option[Attachment, default=None]
   ):
     if reminder == timedelta(seconds=0):
       tasker_core.remove_reminder(str(ctx.guild.id), project)
@@ -163,8 +163,8 @@ class TaskerCommands(commands.Cog):
   async def set_reminder_template(
     self,
     ctx,
-    project : Option(str, autocomplete=autocomp(get_projects)),
-    template : Option(Attachment, default=None)
+    project : Option[str, autocomplete=autocomp(get_projects)],
+    template : Option[Attachment, default=None]
   ):
     tasker_core.set_reminder_template(ctx.guild.id, project, template)
     await ctx.respond("Template mis avec succès.", ephemeral=True)
@@ -174,7 +174,7 @@ class TaskerCommands(commands.Cog):
   async def add_project_role(
     self,
     ctx,
-    project : Option(str, autocomplete=autocomp(get_projects)),
+    project : Option[str, autocomplete=autocomp(get_projects)],
     role : Role
   ):
     tasker_core.add_project_role(str(ctx.guild.id), project, role.mention)
@@ -186,7 +186,7 @@ class TaskerCommands(commands.Cog):
   async def remove_project_role(
     self,
     ctx,
-    project : Option(str, autocomplete=autocomp(get_projects)),
+    project : Option[str, autocomplete=autocomp(get_projects)],
     role : Role
   ):
     tasker_core.remove_project_role(str(ctx.guild.id), project, role.mention)
@@ -199,7 +199,7 @@ class TaskerCommands(commands.Cog):
   async def bulk_add_tasks(
     self,
     ctx,
-    project : Option(str, autocomplete=autocomp(get_projects)),
+    project : Option[str, autocomplete=autocomp(get_projects)],
     file : Attachment
   ):
     from lark import UnexpectedInput #TODO not this
@@ -220,9 +220,9 @@ class TaskerCommands(commands.Cog):
   @access_control(2)
   async def set_project_admin(self,
     ctx,
-    project : Option(str, autocomplete=autocomp(get_projects)),
+    project : Option[str, autocomplete=autocomp(get_projects)],
     user : Member,
-    to : Option(bool, default=True, choices=[True, False])
+    to : Option[bool, default=True, choices=[True, False]]
   ):
     tasker_core.set_project_admin(str(ctx.guild.id), project, user.id, to)
     await ctx.respond("Done.", ephemeral=True)

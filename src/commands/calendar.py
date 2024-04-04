@@ -89,8 +89,8 @@ class CalendarCommands(commands.Cog):
     @access_control(2)
     async def set_access(self,
         ctx,
-        who : discord.Option(discord.SlashCommandOptionType.mentionable),
-        level : discord.Option(int)
+        who : discord.Option[discord.SlashCommandOptionType.mentionable],
+        level : discord.Option[int]
     ):
         if level < 0 or level > 2:
             await ctx.respond(f'{level} is not a valid level. 0, 1 and 2 are the only valid ones.', ephemeral=True)

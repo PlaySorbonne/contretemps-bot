@@ -24,7 +24,7 @@ from uuid import uuid4
 from googleapiclient.discovery import build
 import json
 from googleapiclient.errors import HttpError
-from  google.auth.exceptions import OAuthError, GoogleAuthError, RefreshError
+from google.auth.exceptions import OAuthError, GoogleAuthError, RefreshError
 
 from datetime import datetime, timedelta
 from inspect import iscoroutinefunction
@@ -41,23 +41,24 @@ GAPI_CALENDAR_SCOPES = [
 
 MAX_AHEAD_LOOKUP = timedelta(days=366)
 
+
 class GoogleAuthentifier:
     """ 
     Allows to obtain login credentials for some account
-    
+
     Once created, o.get_url() gives an url than can be passed
     to the user, then the user uses the url to authentify and
     obtain a code, then o.get_credentials(code) allows to obtain
     credentials than can be stored and used to start an API
     session.
-    
+
     Once the credentials are obtained, o.get_account_info() 
     allows to get the email of the connected account.
     """
-    
+
     def __init__(self):
         self.__flow = Flow.from_client_secrets_file(
-            "app_secret.json", 
+            "app_secret.json",
             scopes=GAPI_CALENDAR_SCOPES,
             redirect_uri='urn:ietf:wg:oauth:2.0:oob'
         )
@@ -65,46 +66,46 @@ class GoogleAuthentifier:
         self.__auth_url, state = self.__flow.authorization_url(
             prompt='consent', state=rtok
         )
-        self.__valid = state==rtok
+        self.__valid = state == rtok
         self.__got_credentials = False
-    
+
     def is_valid(self):
         return self.__valid
+
     def get_url(self):
         return self.__auth_url
-    
+
     def get_credentials(self, code):
-        if not self.__got_credentials : 
-            try : 
+        if not self.__got_credentials:
+            try:
                 self.__flow.fetch_token(code=code)
             except Exception:
                 return None
             self.__got_credentials = True
         return self.__flow.credentials.to_json()
-    
+
     def get_account_info(self):
         if not self.__got_credentials:
             return None
         else:
             uinfo = build(
                 'oauth2', 'v2',
-                credentials = self.__flow.credentials
+                credentials=self.__flow.credentials
             )
             return uinfo.userinfo().get().execute()
 
 
-
 class CalendarApiLink:
-    
+
     class BadCredentials(Exception):
         """ Raised if the credentials passed to the constructor are no longer valid"""
         pass
     HttpError = HttpError
-    
+
     @staticmethod
     def as_dict(event_list):
-        return { e['id']:e for e in event_list }
-            
+        return {e['id']: e for e in event_list}
+
     def might_refresh_error(pass_as=None, msg=""):
         """
         Decorator for handling an unexpected token expiration/revocation
@@ -124,8 +125,8 @@ class CalendarApiLink:
                         args[0].update.stop()
                         if (pass_as):
                             raise pass_as(msg)
-            else: # this is a quite ugly copy-paste :[[
-                async def new_f(*args, **kwargs): 
+            else:  # this is a quite ugly copy-paste :[[
+                async def new_f(*args, **kwargs):
                     if (not args[0].__valid):
                         if pass_as:
                             raise pass_as(msg)
@@ -140,15 +141,14 @@ class CalendarApiLink:
                             raise pass_as(msg)
             return new_f
         return dec
-    
-    
+
     def __init__(self, auth_creds, watched_cals, callback):
         creds = Credentials.from_authorized_user_info(
             json.loads(auth_creds),
             scopes=GAPI_CALENDAR_SCOPES
         )
         if creds.refresh_token:
-            try: 
+            try:
                 creds.refresh(Request())
             except RefreshError:
                 raise CalendarApiLink.BadCredentials("token no longer valid")
@@ -164,55 +164,55 @@ class CalendarApiLink:
         self.__watched_cals = dict()
         for cal in watched_cals:
             self.watch_calendar(cal)
-            
+
         self.__callback = callback
 
         self.update.start()
-        
+
     def get_id(self):
         return self.__id
+
     def get_email(self):
         return self.__email
-    
+
     def get_cal_name(self, cal_id):
         return self.__c.calendars().get(
             calendarId=cal_id
         ).execute()['summary']
-    
+
     def watch_calendar(self, cal):
         if (cal in self.__watched_cals):
             return
         before = datetime.now()+MAX_AHEAD_LOOKUP
         resp = self.__c.events().list(
-                    calendarId=cal,
-                    timeMax=before.isoformat()+'Z',
-                    singleEvents=True,
-                    timeZone="Etc/UTC"
-                   ).execute()
+            calendarId=cal,
+            timeMax=before.isoformat()+'Z',
+            singleEvents=True,
+            timeZone="Etc/UTC"
+        ).execute()
         while 'nextPageToken' in resp:
             resp = self.__c.events().list(
-                pageToken = resp['nextPageToken'],
-                calendarId = cal,
+                pageToken=resp['nextPageToken'],
+                calendarId=cal,
                 timeZone="Etc/UTC",
                 singleEvents=True
             ).execute()
         self.__watched_cals[cal] = {
-            'events':CalendarApiLink.as_dict(resp.get('items')),
-            'tok':resp.get('nextSyncToken')
+            'events': CalendarApiLink.as_dict(resp.get('items')),
+            'tok': resp.get('nextSyncToken')
         }
         return True
-        
-    
+
     @might_refresh_error(BadCredentials)
     def get_calendars(self):
         cals = self.__c.calendarList().list().execute().get('items')
-        return [ {'id':c['id'], 
-                  'name':c['summary'],
-                  'timezone':c['timeZone']
+        return [{'id': c['id'],
+                 'name': c['summary'],
+                 'timezone': c['timeZone']
                  }
-                 for c in cals
-               ]
-    
+                for c in cals
+                ]
+
     @might_refresh_error(BadCredentials)
     def get_next_events(self, calendar_id, days):
         now_dt = datetime.utcnow()
@@ -229,9 +229,9 @@ class CalendarApiLink:
             ).execute().get('items')
         )
         return res
-    
+
     @might_refresh_error(BadCredentials)
-    def get_period_events(self, calendarId, start, end): 
+    def get_period_events(self, calendarId, start, end):
         start = start.isoformat().split('+')[0]+'Z'
         end = end.isoformat().split('+')[0]+'Z'
         res = (
@@ -245,38 +245,38 @@ class CalendarApiLink:
             ).execute().get('items')
         )
         return res
-    
+
     @might_refresh_error(BadCredentials)
     def get_all_events(self, calendar_id):
         return self.__watched_cals[calendar_id]['events']
-    
-    
+
     @tasks.loop(seconds=5)
     @might_refresh_error()
     async def update(self):
         modified = dict()
         for cal in self.__watched_cals:
             args = {
-              'calendarId':cal,
-              'singleEvents':True,
-              'syncToken':self.__watched_cals[cal]['tok'],
-              'showDeleted':True,
-              'timeZone' : "Etc/UTC"
+                'calendarId': cal,
+                'singleEvents': True,
+                'syncToken': self.__watched_cals[cal]['tok'],
+                'showDeleted': True,
+                'timeZone': "Etc/UTC"
             }
             try:
                 resp = self.__c.events().list(**args).execute()
             except HttpError:
-                print(f"[CalendarApiLink] syncToken expired on {datetime.utcnow()} for calendar {cal}")
+                print(
+                    f"[CalendarApiLink] syncToken expired on {datetime.utcnow()} for calendar {cal}")
                 args.pop('syncToken')
                 resp = self.__c.events().list(**args).execute()
             newevnts = resp.get('items')
             while 'nextPageToken' in resp:
                 resp = self.__c.events().list(
-                    calendarId = cal,
-                    singleEvents = True, 
-                    showDeleted = True,
-                    pageToken = resp['nextPageToken'],
-                    timeZone = "Etc/UTC"
+                    calendarId=cal,
+                    singleEvents=True,
+                    showDeleted=True,
+                    pageToken=resp['nextPageToken'],
+                    timeZone="Etc/UTC"
                 ).execute()
                 newevnts += resp.get('items')
             self.__watched_cals[cal]['tok'] = resp['nextSyncToken']
@@ -290,8 +290,8 @@ class CalendarApiLink:
                 modified[cal] = newevnts
         updates_numbeer = sum(sum(cal) for cal in modified.values())
         if sum(sum(cal) for cal in modified.values()) > 10:
-          print(f"[CalendarApiLink] Too many updated events ({updates_numbeer})")
-          return
+            print(
+                f"[CalendarApiLink] Too many updated events ({updates_numbeer})")
+            return
         if (self.__callback is not None):
             await self.__callback(modified)
-
