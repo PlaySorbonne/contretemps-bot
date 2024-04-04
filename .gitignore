@@ -3,3 +3,5 @@ __pycache__/
 app_secret.json
 .env
 .discord_token
+
+venv/
