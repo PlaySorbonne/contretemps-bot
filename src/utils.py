@@ -52,10 +52,30 @@ async def purge_opt_message_list(l):
             try: await m.delete()
             except Exception : pass
 
-async def publish_long_message(messages, channel_id, what):
+def split_long_message(what):
   MAX_MESSAGE_ALLOWED=1750
   messages = messages.split(';')
   if not what['content'].strip(): what['content']='empty message'
+  if len(what['content'])>MAX_MESSAGE_ALLOWED:
+    lines = what['content'].strip().split('\n')[::-1]
+    good_contents = []
+    while lines:
+      base = lines.pop()
+      if len(base)>MAX_MESSAGE_ALLOWED:
+        parts_of_base = [
+          base[MAX_MESSAGE_ALLOWED*i:MAX_MESSAGE_ALLOWED*(i+1)]
+          +'...' 
+          for i in range((len(base)-1)//MAX_MESSAGE_ALLOWED + 1)
+        ]
+        good_contents += parts_of_base
+      else:
+        base_string = ""
+        while lines and len(base_string) + len(lines[-1]) <= MAX_MESSAGE_ALLOWED:
+          base_string += lines.pop()+'\n'
+        if base_string.strip(): good_contents.append(base_string)
+    return good_contents
+  return [what['content']]
+
   old_len_messages = len(messages)
   assert old_len_messages # at least one message ?
   try:
@@ -134,3 +154,8 @@ async def publish_long_message(messages, channel_id, what):
       try: await message.edit("Erreur de publication de message :(", ephemeral=True)
       except Exception: pass
     return ';'.join(messages)
+
+async def publish_long_ephemeral(sender, what):
+  good_contents = split_long_message(what)
+  for i, content in enumerate(good_contents):
+    await sender(content+f" (Partie {i+1}/{len(good_contents)})")

@@ -19,6 +19,7 @@ from typing import Optional
 from datetime import timedelta
 from functools import wraps
 import pytz
+import utils
 
 from discord.ext import tasks, pages, commands
 from discord.utils import basic_autocomplete as autocomp
@@ -354,4 +355,6 @@ class TaskerCommands(commands.Cog):
     msg = tasker_core.contributor_summary_message(
       ctx.guild.id, project, ctx.user.id
     )
-    await ctx.respond(**msg)
+    async def sender(what):
+      await ctx.followup.send(what, ephemeral=True)
+    await utils.publish_long_ephemeral(sender, msg)

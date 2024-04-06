@@ -85,9 +85,11 @@ def make_common_project_context(s):
     'step_desc': (lambda s: s.step_description),
     'step_number': (lambda s: s.step_number),
     'step_done': (lambda s: s.done),
-    'task_logs': (lambda t: list(t.logs)),
+    'task_logs': (lambda t: list(s.scalars(ulog_select(t)))),
     'task_user_logs':
-      (lambda t,u: list(x for x in t.logs if x.member_id == u.member_id)),
+      (lambda t,u:
+         list(s.scalars(ulog_select(t).filter_by(member_id=u.member_id)))
+      ),
     'log_date': (lambda log: 
       idt(log.timestamp, log.task.project.server.timezone) if log else None
      ),
