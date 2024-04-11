@@ -145,7 +145,12 @@ async def create_task(guild_id, project_name, task, s=None, upd=True):
   if s is None:
    with Session(engine) as s, s.begin():
     return await create_task(guild_id, project_name, task, s)
-  proj = _get_project(s, guild_id, project_name) #TODO : insert and commit before publishing messages 
+  proj = _get_project(s, guild_id, project_name)
+  if s.scalars(
+    select(Task).filter_by(project_id=proj.project_id, title=task.title)
+  ).first() is not None:
+    raise TaskAlreadyExists(task.title)
+  #TODO : insert and commit before publishing messages
   proj.tasks.append(task)
   forum = await bot.fetch_channel(int(proj.forum_id))
   thread = await forum.create_thread(name=task.title, content='placeholder')
@@ -169,6 +174,7 @@ async def create_task(guild_id, project_name, task, s=None, upd=True):
     
   if upd:
     await update_task_messages(task, s, thread.starting_message, desc_message[0]) #TODO handle multiple messages
+  return thread
 
 async def update_task_messages(task, s=None, main=None, sec=None):
   if s is None:
