@@ -76,6 +76,7 @@ def split_long_message(what):
     return good_contents
   return [what['content']]
 
+async def publish_long_message(messages, channel_id, what):
   old_len_messages = len(messages)
   assert old_len_messages # at least one message ?
   try:
