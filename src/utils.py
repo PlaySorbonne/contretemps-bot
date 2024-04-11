@@ -77,6 +77,9 @@ def split_long_message(what):
   return [what['content']]
 
 async def publish_long_message(messages, channel_id, what):
+  MAX_MESSAGE_ALLOWED=1750
+  messages = messages.split(';')
+  if not what['content'].strip(): what['content']='empty message'
   old_len_messages = len(messages)
   assert old_len_messages # at least one message ?
   try:
