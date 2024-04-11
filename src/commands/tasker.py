@@ -31,7 +31,7 @@ from .common import TimeDelta, Time
 
 from tasker import tasker_core, tasker_pretty
 from tasker.task_text_input import tasks_parser
-from database.tasker import ProjectAlert
+from database.tasker import *
 from sqlalchemy.orm import Session
 from database import engine
 
@@ -355,3 +355,32 @@ class TaskerCommands(commands.Cog):
       ctx.guild.id, project, ctx.user.id
     )
     await ctx.respond(**msg)
+  
+  @commands.slash_command(description='Create a new task in a project')
+  @project_checks(admin=True)
+  async def create_new_task(self, ctx,
+    project : Option(str, autocomplete=autocomp(get_projects)),
+    task_title : str,
+    task_description : Option(str, default=None),
+    start_date : Option(Time, default=None),
+    end_date : Option(Time, default=None),
+  ):
+    await ctx.defer(ephemeral=True)
+    BadArgument = commands.BadArgument
+    if type(start_date) is BadArgument or type(end_date) is BadArgument:
+      #TODO: unified argument checking in cmds
+      return await ctx.respond(
+        'Mauvais format de date. '+
+        'Bon format: "YYYY-MM-DD" ou "YYYY-MM-DD HH:MM:SS"'
+      )
+    try:
+      new_task = Task(
+        title=task_title,
+        description=task_description,
+        starts_after=start_date.isoformat() if start_date else None,#TODO: ...
+        ends_before=end_date.isoformat() if end_date else None
+      )
+      thread = await tasker_core.create_task(ctx.guild.id, project, new_task)
+      await ctx.respond(f'Done! {thread.mention}')
+    except tasker_core.TaskAlreadyExists as e:
+      await ctx.respond(f'Une tâche nommée "{e.args[0]}" existe déjà.')
