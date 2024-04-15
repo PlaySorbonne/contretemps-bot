@@ -21,6 +21,7 @@ import discord
 from sqlalchemy.orm import Session
 import asyncio
 from datetime import datetime
+from typing import Optional
 
 from tasker import tasker_core, tasker_graph
 from database import engine
@@ -30,6 +31,24 @@ from .common import DangerForm, ActionModal
 from .common import paginated_selector
 
 lock = asyncio.Lock()
+#TODO: add decorators to views integrating a lock and task existence check
+
+async def find_task_or_tell(interaction, s=None) -> Optional[Task] :
+  if s is None:
+    with Session(engine) as s, s.begin():
+      return await find_task_or_tell(interaction, s)
+  task = tasker_core.find_task_by_thread(str(interaction.channel_id), s=s)
+  if task is not None:
+    return task
+  msg = {
+    'content' : f"Aucune tâche n'est associée à ce thread :(",
+    'ephemeral' : True
+  }
+  if interaction.response.is_done():
+    await interaction.followup.send(**msg)
+  else:
+    await interaction.response.send_message(**msg)
+  return None
 
 class TaskInteractView(View): #TODO SANITIZE ALL USER INPUT
   def __init__(self):
@@ -40,7 +59,8 @@ class TaskInteractView(View): #TODO SANITIZE ALL USER INPUT
     async with lock:
      with Session(engine) as s, s.begin():
        user_id, channel_id = interaction.user.id, interaction.channel_id
-       task = tasker_core.find_task_by_thread(str(channel_id), s=s)
+       if (task := await find_task_or_tell(interaction, s)) is None:
+         return
        task_id = (task.project_id, task.title)
        task_title = task.title
        contrib=tasker_core.is_task_contributor(Kind, str(user_id), task, s=s)
@@ -59,7 +79,8 @@ class TaskInteractView(View): #TODO SANITIZE ALL USER INPUT
          ephemeral=True
        )
      with Session(engine) as s, s.begin():
-      task = tasker_core.find_task_by_thread(str(channel_id), s=s)
+      if (task := await find_task_or_tell(interaction, s)) is None:
+        return
       await tasker_core.add_task_contributor(Kind, task, str(user_id), s=s)
      await interaction.followup.send("Done!", ephemeral=True) #TODO better message
   
@@ -83,7 +104,8 @@ class TaskInteractView(View): #TODO SANITIZE ALL USER INPUT
   async def log_callback(self, button, interaction):
       s = Session(engine)
       thread, user = str(interaction.channel_id), str(interaction.user.id)
-      task = tasker_core.find_task_by_thread(thread, s)
+      if (task := await find_task_or_tell(interaction, s)) is None:
+        return
       who = get_or_create(
        s, Contributor,
        member_id=user, project_id=task.project_id
@@ -116,6 +138,7 @@ class TaskInteractView(View): #TODO SANITIZE ALL USER INPUT
     row=1
   )
   async def edit_log_callback(self, button, interaction):
+    if await find_task_or_tell(interaction) is None: return
     await interaction.response.send_message(
       f'<@{interaction.user.id}>, choisissez une entrée à modifier',
       view=EditLogView(interaction.channel_id, interaction.user.id),
@@ -129,11 +152,14 @@ class TaskInteractView(View): #TODO SANITIZE ALL USER INPUT
     row=1
   )
   async def percentage_callback(self, button, interaction):
+    if await find_task_or_tell(interaction) is None: return
     async def cback(self2, interaction2):
      with Session(engine) as s, s.begin():
       try:
+        await interaction2.response.defer(ephemeral=True)
         thread = str(interaction.channel_id)
-        task = tasker_core.find_task_by_thread(thread, s)
+        if (task := await find_task_or_tell(interaction, s)) is None:
+          return
         new = self2.children[0].value
         new = int(new)
         if new < 0 or new > 100:
@@ -142,13 +168,14 @@ class TaskInteractView(View): #TODO SANITIZE ALL USER INPUT
             ephemeral=True
           )
         else:
+          if await find_task_or_tell(interaction) is None: return
           await tasker_core.update_advancement(task, new, s)
-          await interaction2.response.send_message(
+          await interaction2.edit_original_response(
             "Avencement mis à jour avec succès.",
             ephemeral=True
           )
       except ValueError:
-        await interaction2.response.send_message(
+        await interaction2.edit_original_responsex(
           "Erreur. L'avancement doit être un entier entre 0 et 100",
           ephemeral=True
         )
@@ -161,6 +188,7 @@ class TaskInteractView(View): #TODO SANITIZE ALL USER INPUT
     row=3
   )
   async def edit_steps_callback(self, button, interaction):
+    if await find_task_or_tell(interaction) is None: return
     await interaction.response.send_message(
       "Choisissez une tâche à modificer!",
       ephemeral=True, 
@@ -173,6 +201,7 @@ class TaskInteractView(View): #TODO SANITIZE ALL USER INPUT
     row=3
   )
   async def edit_ps_callback(self, button, interaction):
+    if await find_task_or_tell(interaction) is None: return
     await interaction.response.send_message(
       "Choisissez une remarque à modifier!",
       ephemeral=True,
@@ -185,6 +214,7 @@ class TaskInteractView(View): #TODO SANITIZE ALL USER INPUT
     row=3
   )
   async def add_step_callback(self, button, interaction):
+    if await find_task_or_tell(interaction) is None: return
     await interaction.response.send_message(
       'C:', ephemeral=True,
       view=AddStepView()
@@ -196,6 +226,7 @@ class TaskInteractView(View): #TODO SANITIZE ALL USER INPUT
     custom_id='add_dependency_button',
   )
   async def add_dep_callback(self, button, interaction):
+    if await find_task_or_tell(interaction) is None: return
     await interaction.response.send_message(
       'C:', ephemeral=True,
       view=AddDependencyView(interaction.channel_id)
@@ -207,12 +238,23 @@ class TaskInteractView(View): #TODO SANITIZE ALL USER INPUT
     custom_id='updmsg'
   )
   async def upd_callback(self, button, interaction):
+    if await find_task_or_tell(interaction) is None: return
     await tasker_core.update_task_of(interaction.channel_id)
     await interaction.response.send_message('Done!', ephemeral=True)
 
 def EditStepView(thread_id, what):
   with Session(engine) as s:
     task = tasker_core.find_task_by_thread(str(thread_id), s)
+    
+    # Task existence is checked just before calling this but since there is no
+    # concurrency handling for now it is technically possible to produce a
+    # situation where task is None here.
+    # With this handling, there will be a message to choose a step but no view
+    # to go with it. When trying again to get the view, a message indicating
+    # that not task is present.
+    # TLDR: TODO remove this check when concurrency is correctly handled
+    if task is None: return None
+    
     options = [
       (
         s.step_id,
@@ -253,6 +295,7 @@ def EditStepView(thread_id, what):
            ephemeral=True
          )
        await interaction.response.defer()
+       if await find_task_or_tell(interaction) is None: return
        await tasker_core.delete_step(self.step)
        await interaction.edit_original_response(view=None, content='Fait!')
      
@@ -268,10 +311,12 @@ def EditStepView(thread_id, what):
              "Il faut d'abord choisir une étape!",
              ephemeral=True
            )
+         if await find_task_or_tell(interaction) is None: return
          async def cback(self2, interaction2):
            a = self2.children[0].value
            try:
              a = float(a)
+             if await find_task_or_tell(interaction) is None: return
              await tasker_core.edit_step_number(self.step, a)
              await self.message.edit(view=None, content='Done!')
              await interaction2.response.defer()
@@ -295,6 +340,7 @@ def EditStepView(thread_id, what):
              ephemeral=True
            )
          await interaction.response.defer()
+         if await find_task_or_tell(interaction) is None: return
          await tasker_core.check_step(self.step)
          await interaction.edit_original_response(
            content='Done!', view=None
@@ -305,6 +351,7 @@ def EditStepView(thread_id, what):
 def EditLogView(thread_id, user_id):
   with Session(engine) as s:
     task = tasker_core.find_task_by_thread(str(thread_id), s)
+    if task is None: return None #TODO: remove this when concurrency is handled
     d = datetime.fromisoformat
     options = [
       ((l.project_id, l.task_title, l.timestamp, l.member_id),
@@ -350,6 +397,7 @@ def EditLogView(thread_id, user_id):
       async def cback(self2, interaction2):
         await interaction2.response.defer()
         async with lock:
+          if await find_task_or_tell(interaction) is None: return
           await tasker_core.edit_log_message(self.log, self2.children[0].value)
         await interaction.edit_original_response(content="Done!", view=None)
       m = ActionModal('Entrez la nouvelle version de l\'entrée', cback, '.')
@@ -368,6 +416,7 @@ def EditLogView(thread_id, user_id):
          )
       async with lock:
         await interaction.response.defer()
+        if await find_task_or_tell(interaction) is None: return
         await tasker_core.delete_log_message(self.log)
         await interaction.edit_original_response(
           view=None, content='Fait!'
@@ -426,6 +475,8 @@ class AddStepView(View):
         ephemeral=True
       )
     kind = TaskStep.REMARK if self.step is None else TaskStep.SUBTASK
+    if await find_task_or_tell(interaction) is None: return
+    #TODO: handle concurrency, the check above is not sufficient
     await tasker_core.add_step(
       interaction.channel_id,
       self.desc,
@@ -440,6 +491,7 @@ class AddStepView(View):
 def AddDependencyView(channel_id):
   with Session(engine) as s:
     _task = tasker_core.find_task_by_thread(channel_id, s)
+    if _task is None: return #TODO: remove this when concurrency is handled
     choices = sorted([
       (task.thread_id, task.title) for task in _task.project.tasks
       if task not in tasker_graph.all_codependencies(_task, s)
@@ -467,6 +519,7 @@ def AddDependencyView(channel_id):
           "Il faut d'abord choisir une tâche!",
           ephemeral=True
         )
+      if await find_task_or_tell(interaction) is None: return
       await tasker_core.add_dependency(channel_id, self.chosen_task)
       await interaction.response.send_message(
         "Ça devrait être bon!",
