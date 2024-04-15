@@ -22,7 +22,7 @@ import pytz
 from random import randint
 import asyncio
 from discord.ext import tasks
-from discord import NotFound
+from discord import NotFound, HTTPException, Forbidden
 
 from database.tasker import *
 from database.base import ServerConnexion as Server
@@ -37,6 +37,8 @@ from lark.exceptions import UnexpectedInput
 
 from tasker.tasker_pretty import *
 
+#TODO TODO : split this into two parts: an interface + a core
+#            the interface does validations, and calls the core
 #TODO custom timedelta dates type in sqlalchemy
 #TODO reminder frequency better granurarity (now just in days)
 
@@ -88,6 +90,13 @@ def get_guild_projects(guild_id):
 def check_project_exists(guild_id, project_name):
   with Session(engine) as s:
     return None is not _get_project(s, guild_id, project_name)
+
+def get_project_tasks(guild_id, project_name):
+  with Session(engine) as s:
+    p = _get_project(s, guild_id, project_name)
+    if p is not None:
+      return [t.title for t in p.tasks]
+    return []
 
 def is_project_admin(user_id, guild_id, project):
   with Session(engine) as s:
@@ -175,6 +184,29 @@ async def create_task(guild_id, project_name, task, s=None, upd=True):
   if upd:
     await update_task_messages(task, s, thread.starting_message, desc_message[0]) #TODO handle multiple messages
   return thread
+
+class TaskDoesNotExist(Exception):
+  pass
+async def delete_task(guild_id, project_name, task_title, del_thread=False):
+  with Session(engine) as s, s.begin():
+    proj = _get_project(s, guild_id, project_name)
+    task = s.scalars(
+      select(Task).filter_by(project_id = proj.project_id, title=task_title)
+    ).first()
+    if task is None:
+      raise TaskDoesNotExist()
+    await delete_task_internal(task, s, del_thread)
+
+async def delete_task_internal(task, s, del_thread):
+  if del_thread:
+    try:
+      thread = await bot.fetch_channel(int(task.thread_id))
+      await thread.delete()
+    except NotFound: pass
+    except Forbidden: pass
+    except HTTPException: pass
+    #TODO: handle these exceptions and signal to user
+  s.delete(task)
 
 async def update_task_messages(task, s=None, main=None, sec=None):
   if s is None:

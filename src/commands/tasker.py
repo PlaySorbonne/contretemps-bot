@@ -38,6 +38,10 @@ from database import engine
 
 async def get_projects(ctx):
   return tasker_core.get_guild_projects(str(ctx.interaction.guild.id))
+async def get_project_tasks(ctx):
+  proj = ctx.options['project']
+  if proj is None: return []
+  return tasker_core.get_project_tasks(str(ctx.interaction.guild.id), proj)
 async def get_timezones(ctx): #TODO better selector
   return pytz.all_timezones #TODO fix reverted GMT+t
 
@@ -387,3 +391,18 @@ class TaskerCommands(commands.Cog):
       await ctx.respond(f'Done! {thread.mention}')
     except tasker_core.TaskAlreadyExists as e:
       await ctx.respond(f'Une tâche nommée "{e.args[0]}" existe déjà.')
+  
+  @commands.slash_command(description='Create a new task in a project')
+  @project_checks(admin=True)
+  async def delete_project_task(self, ctx,
+    project : Option(str, autocomplete=autocomp(get_projects)),
+    task : Option(str, autocomplete=autocomp(get_project_tasks)),
+    delete_thread : Option(bool, choices=[False, True])
+  ):
+    await ctx.defer(ephemeral=True)
+    try:
+      await tasker_core.delete_task(ctx.guild.id, project, task, delete_thread)
+    except tasker_core.TaskDoesNotExist:
+      await ctx.respond(f'La tâche "{task}" n\'existe pas :(')
+    else:
+      await ctx.respond(f'Tâche "{task}" supprimée avec succès')

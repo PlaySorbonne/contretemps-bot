@@ -41,11 +41,17 @@ class Project(Base):
     reminder_template: Mapped[NULL[str]]
     
     server : Mapped['ServerConnexion'] = relationship(back_populates='projects')
-    tasks : Mapped[List['Task']] = relationship(back_populates='project')
-    contributors : Mapped[List['Contributor']] = (
-        relationship(back_populates='project'))
-    alerts : Mapped[List['ProjectAlert']] = (
-      relationship(back_populates='project')
+    tasks : Mapped[List['Task']] = relationship(
+      # No cascade delete because it needs manual handling
+      back_populates='project'
+    )
+    contributors : Mapped[List['Contributor']] = relationship(
+      back_populates='project',
+      cascade='all, delete'
+    )
+    alerts : Mapped[List['ProjectAlert']] = relationship(
+      back_populates='project',
+      cascade='all, delete'
     )
     
     UniqueConstraint("project_name", "server_id", name='project_name_unique')
@@ -83,8 +89,11 @@ class Task(Base):
         secondary='task_interested')
     active : Mapped[List['Contributor']] = relationship(
         back_populates='current_tasks', secondary='task_participant')
-    steps : Mapped[List['TaskStep']] = (
-        relationship(order_by='TaskStep.step_number', back_populates='task'))
+    steps : Mapped[List['TaskStep']] = relationship(
+      order_by='TaskStep.step_number',
+      back_populates='task',
+      cascade='all, delete'
+    )
     successors : Mapped[List['Task']] = relationship(
         secondary='task_dependency',
         primaryjoin=and_(title == TaskDependency.task1,project_id == TaskDependency.project_id),
@@ -92,7 +101,9 @@ class Task(Base):
         backref='predecessors')
     logs : Mapped[List['TaskLog']] = relationship(
       back_populates='task',
-      order_by='TaskLog.timestamp')
+      order_by='TaskLog.timestamp',
+      cascade='all, delete'
+    )
     
     def __repr__(s):
       return f"Task(project={s.project_id}, title='{s.title}')"
