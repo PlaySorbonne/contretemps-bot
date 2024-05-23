@@ -89,6 +89,8 @@ class Task(Base):
         secondary='task_interested')
     active : Mapped[List['Contributor']] = relationship(
         back_populates='current_tasks', secondary='task_participant')
+    moteurs : Mapped[List['Contributor']] = relationship(
+        back_populates='motored_tasks', secondary='task_moteur')
     steps : Mapped[List['TaskStep']] = relationship(
       order_by='TaskStep.step_number',
       back_populates='task',
@@ -124,11 +126,14 @@ class Contributor(Base):
         back_populates='interested', secondary='task_interested')
     current_tasks : Mapped[List[Task]] = relationship(
         back_populates='active', secondary='task_participant')
+    motored_tasks : Mapped[List[Task]] = relationship(
+        back_populates='moteurs', secondary='task_moteur')
     
     def tasks(self, Kind):
       return { TaskInterested: self.interesting_tasks,
                TaskParticipant: self.current_tasks,
-               TaskVeteran: self.mastered_tasks }[Kind]
+               TaskVeteran: self.mastered_tasks,
+               TaskMoteur : self.motored_tasks }[Kind]
 
 class TaskLog(Base):
     __tablename__ = 'task_log'
@@ -211,4 +216,5 @@ class TaskInterested(ContributorTaskMixin, Base):
 class TaskVeteran(ContributorTaskMixin, Base):
     __tablename__ = 'task_veteran'
 
-     
+class TaskMoteur(ContributorTaskMixin, Base):
+    __tablename__ = 'task_moteur'

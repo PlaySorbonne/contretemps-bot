@@ -72,7 +72,7 @@ class TaskInteractView(View): #TODO SANITIZE ALL USER INPUT
             return
            await tasker_core.remove_task_contributor(Kind, task, str(user_id),s)
        what = {TaskParticipant:"participant.e", TaskInterested:"interessé.e",
-               TaskVeteran:"pouvant aider"}
+               TaskVeteran:"pouvant aider", TaskMoteur:"moteur.rice"}
        return await interaction.followup.send(
          content=(f'{interaction.user.mention}, confirmes-tu vouloir ne plus être '
                  +f'considéré.e comme {what[Kind]} pour la tâche "{task_title}" ?'),
@@ -95,6 +95,9 @@ class TaskInteractView(View): #TODO SANITIZE ALL USER INPUT
   @button(label='Veux plus d\'infos', custom_id='veteran_task_button', style=ButtonStyle.primary, row=0)
   async def veteran_callback(self, button, interaction):
     await self.common_choice_declaration(interaction, TaskVeteran)
+  @button(label='Je deviens moteur.rice', custom_id='moteur_task_button', style=ButtonStyle.primary, row=0)
+  async def moteur_callback(self, button, interaction):
+    await self.common_choice_declaration(interaction, TaskMoteur)
   
   @button(
     label='Écrire dans le Journal de Bord',

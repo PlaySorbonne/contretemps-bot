@@ -100,9 +100,11 @@ def make_common_project_context(s):
     'user_tasks': (lambda u: u.tasks(TaskParticipant)),
     'user_interested': (lambda u: u.tasks(TaskInterested)),
     'user_asksinfo': (lambda u: u.tasks(TaskVeteran)),
+    'user_moteur': (lambda u: u.tasks(TaskMoteur)),
     'participants': (lambda t: t.active),
     'interested': (lambda t: t.interested),
     'veterans':(lambda t:t.veterans),
+    'moteurs':(lambda t:t.moteurs)
   }
   return common_context
 
