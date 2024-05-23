@@ -54,7 +54,6 @@ async def purge_opt_message_list(l):
 
 def split_long_message(what):
   MAX_MESSAGE_ALLOWED=1750
-  messages = messages.split(';')
   if not what['content'].strip(): what['content']='empty message'
   if len(what['content'])>MAX_MESSAGE_ALLOWED:
     lines = what['content'].strip().split('\n')[::-1]
