@@ -68,7 +68,8 @@ class TaskInteractView(View): #TODO SANITIZE ALL USER INPUT
        async def act():
         async with lock:
           with Session(engine) as s, s.begin():
-           task = tasker_core.find_task_by_thread(str(channel_id), s=s)
+           if (task := await find_task_or_tell(interaction, s)) is None:
+            return
            await tasker_core.remove_task_contributor(Kind, task, str(user_id),s)
        what = {TaskParticipant:"participant.e", TaskInterested:"interessé.e",
                TaskVeteran:"pouvant aider"}
@@ -116,6 +117,8 @@ class TaskInteractView(View): #TODO SANITIZE ALL USER INPUT
       ):
         async def cback(self2, interaction2):
           message = self2.children[0].value
+          if await find_task_or_tell(interaction2) is None:
+            return
           await tasker_core.task_user_log(task, who, message, s=s)
           s.commit()
           s.close()
@@ -163,19 +166,18 @@ class TaskInteractView(View): #TODO SANITIZE ALL USER INPUT
         new = self2.children[0].value
         new = int(new)
         if new < 0 or new > 100:
-          await interaction2.response.send_message(
+          await interaction2.followup.send(
             "Le poucentage d'avancement doit être entre 0 et 100",
             ephemeral=True
           )
         else:
           if await find_task_or_tell(interaction) is None: return
           await tasker_core.update_advancement(task, new, s)
-          await interaction2.edit_original_response(
-            "Avencement mis à jour avec succès.",
-            ephemeral=True
+          await interaction2.followup.send(
+            "Avencement mis à jour avec succès.", ephemeral=True
           )
       except ValueError:
-        await interaction2.edit_original_responsex(
+        await interaction2.followup.send(
           "Erreur. L'avancement doit être un entier entre 0 et 100",
           ephemeral=True
         )

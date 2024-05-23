@@ -446,6 +446,8 @@ async def add_dependency(thread_1, thread_2):
  with Session(engine) as s, s.begin():
    t1 = find_task_by_thread(thread_1, s)
    t2 = find_task_by_thread(thread_2, s)
+   if t2 is None or t1 is None: return
+   # the None check here won't be necessary once concurrency is handled
    if t2 not in t1.predecessors:
      t1.predecessors.append(t2)
    else:
