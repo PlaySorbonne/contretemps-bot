@@ -243,9 +243,10 @@ class TaskInteractView(View): #TODO SANITIZE ALL USER INPUT
     custom_id='updmsg'
   )
   async def upd_callback(self, button, interaction):
+    await interaction.response.defer(ephemeral=True)
     if await find_task_or_tell(interaction) is None: return
     await tasker_core.update_task_of(interaction.channel_id)
-    await interaction.response.send_message('Done!', ephemeral=True)
+    await interaction.followup.send(content='Done!', ephemeral=True)
 
 def EditStepView(thread_id, what):
   with Session(engine) as s:
