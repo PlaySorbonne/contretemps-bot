@@ -56,8 +56,9 @@ template_grammar = r"""
     maybe_else: _endif | else_
     else_: _OPEN_DIR _ELSE _CLOSE_DIR _rest_of_else
     _rest_of_else: _endif | _block _rest_of_else
-    foreach: _OPEN_DIR _FOREACH id_tuple _IN _expr [where] [sep] _CLOSE_DIR _block* _endfor
+    foreach: _OPEN_DIR _FOREACH id_tuple _IN _expr [where] [order] [sep] _CLOSE_DIR _block* _endfor
     where: _WHERE _expr
+    order: _ORDERBY _expr
     sep: _WITH _SEP estring
     let: _OPEN_DIR _LET ID _EQ _expr _CLOSE_DIR
     _endif: _OPEN_DIR _ENDIF _CLOSE_DIR
@@ -99,6 +100,7 @@ template_grammar = r"""
     _ANY: WS? "any"i WS?
     _ALL: WS? "all"i WS
     _WHERE: WS? "where"i WS?
+    _ORDERBY: WS? "order_by"i WS?
     SPECIAL_ESCAPE: "\\\\"|"\\\n"
 """
 
@@ -158,7 +160,7 @@ class Engine(Interpreter):
   def foreach(self, tree):
     ids = self.visit(tree.children[0])
     loop_over = self.visit(tree.children[1])
-    sep = self.visit(tree.children[3]) if tree.children[3] else ''
+    sep = self.visit(tree.children[4]) if tree.children[4] else ''
     res = []
     n = len(ids)
     for T in loop_over:
@@ -166,11 +168,15 @@ class Engine(Interpreter):
       new = {ids[i] : T[i] for i in range(n)} if n > 1 else {ids[0]:T}
       self.stack.append(LvlDict(self.stack[-1], new))
       if not tree.children[2] or self.visit(tree.children[2]):
-        res.append(''.join(
-          str(self.visit(child)) for child in tree.children[4:])
+        res.append(
+          (''.join(
+            str(self.visit(child))
+            for child in tree.children[5:]
+          ),
+          (0 if not tree.children[3] else self.visit(tree.children[3])))
         )
       self.stack.pop()
-    return sep.join(str(e) for e in res)
+    return sep.join(str(e[0]) for e in sorted(res, key=lambda x:x[1]))
   
   def let(self, tree):
     new_id = tree.children[0][:]
