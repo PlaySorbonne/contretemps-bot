@@ -138,7 +138,7 @@ def set_reminder_template(guild_id, project_name, template):
 def add_project_role(guild_id, project_name, role):
   with Session(engine) as s, s.begin():
     proj = _get_project(s, guild_id, project_name)
-    roles = set(proj.project_roles.split(';'))
+    roles = set(proj.project_roles.split(';')) - {''}
     roles.add(role)
     proj.project_roles = ';'.join(roles)
 def remove_project_role(guild_id, project_name, role):
@@ -147,6 +147,23 @@ def remove_project_role(guild_id, project_name, role):
     roles = set(proj.project_roles.split(';'))
     roles.discard(role)
     proj.project_roles = ';'.join(roles)
+
+@tasks.loop(seconds=300)
+async def check_role_members():
+  with Session(engine) as s, s.begin():
+    projects = s.scalars(select(Project))
+    for p in projects:
+      roles = set(p.project_roles.split(';')) - {''}
+      guild = await bot.fetch_guild(int(p.server_id))
+      guild_members = [m async for m in guild.fetch_members()]
+      all_roles = await guild.fetch_roles()
+      for r in all_roles:
+        if r.mention in roles:
+          for m in (m for m in guild_members if r in m.roles):
+            participant = get_or_create(
+              s, Contributor,
+              member_id=m.id, project_id=p.project_id
+            )
 
 class TaskAlreadyExists(Exception):
   pass
@@ -500,6 +517,11 @@ def contributor_summary_message(guild_id, project_name, contributor_id):
       return make_personnal_summary_message(p, c, s)
     return {'content': 'Vous ne faites pas partie de ce projet.'}
 
+def project_contributors_stats(guild_id, project_name):
+  with Session(engine) as s:
+    p = _get_project(s, guild_id, project_name)
+    return make_contributor_stats_message(p, s)
+
 @tasks.loop(seconds=10)#TODO : 60)
 async def do_reminders():
  with Session(engine) as s, s.begin():
@@ -549,6 +571,15 @@ async def do_frequent_alerts():
           alert.last_update = last2.replace(tzinfo=None)
           await send_alert(s, last.replace(tzinfo=None), alert)
 
+async def update_all_tasks_messages(server_id, project_name, s=None):
+  if s is None:
+    with Session(engine) as s, s.begin():
+      return await update_all_tasks_messages(server_id, project_name, s=s)
+  p = _get_project(s, server_id, project_name)
+  for task in p.tasks:
+    await update_task_messages(task, s)
+
 
 do_reminders.start()
 do_frequent_alerts.start()
+check_role_members.start()

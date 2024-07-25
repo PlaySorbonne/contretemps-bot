@@ -35,6 +35,7 @@ from tasker.task_text_input import tasks_parser
 from database.tasker import *
 from sqlalchemy.orm import Session
 from database import engine
+from bot import bot
 
 async def get_projects(ctx):
   return tasker_core.get_guild_projects(str(ctx.interaction.guild.id))
@@ -363,6 +364,19 @@ class TaskerCommands(commands.Cog):
       await ctx.followup.send(what, ephemeral=True)
     await utils.publish_long_ephemeral(sender, msg)
   
+  @commands.slash_command(description='See statistics on contributor roles')
+  @project_checks(admin=True)
+  async def project_contributors_stats(self, ctx,
+    project : Option(str, autocomplete=autocomp(get_projects))
+  ):
+    await ctx.defer(ephemeral=True)
+    msg = tasker_core.project_contributors_stats(
+      ctx.guild.id, project
+    )
+    async def sender(what):
+      await ctx.followup.send(what, ephemeral=True)
+    await utils.publish_long_ephemeral(sender, msg)
+
   @commands.slash_command(description='Create a new task in a project')
   @project_checks(admin=True)
   async def create_new_task(self, ctx,
@@ -406,3 +420,26 @@ class TaskerCommands(commands.Cog):
       await ctx.respond(f'La tâche "{task}" n\'existe pas :(')
     else:
       await ctx.respond(f'Tâche "{task}" supprimée avec succès')
+  
+  @commands.slash_command(description='Update all task threads at once')
+  @project_checks(admin=True)
+  async def update_all_task_messages(self, ctx,
+    project : Option(str, autocomplete=autocomp(get_projects))
+  ):
+    await ctx.defer(ephemeral=True)
+    await tasker_core.update_all_tasks_messages(ctx.guild.id, project)
+    await ctx.respond(f'Fait!')
+  
+  @commands.slash_command(
+    description='Delete a message from the bot. '
+                'Needs to be executed in the message\'s channel'
+  )
+  @access_control(2)
+  async def delete_bot_message(self, ctx, message_id):
+    await ctx.defer(ephemeral=True)
+    if (m:=await utils.fetch_message_opt(ctx.channel_id, message_id)) is None:
+      return await ctx.respond('Je n\'ai pas pu trouver le message')
+    if (m.author != bot.user):
+      return await ctx.respond(f'Ce message n\'a pas été écrit par moi...')
+    await utils.purge_opt_message_list([m])
+    await ctx.respond('Fait.')
