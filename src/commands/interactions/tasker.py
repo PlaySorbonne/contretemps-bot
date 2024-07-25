@@ -501,7 +501,7 @@ def AddDependencyView(channel_id):
     choices = sorted([
       (task.thread_id, task.title) for task in _task.project.tasks
       if task not in tasker_graph.all_codependencies(_task, s)
-    ])
+    ], key=lambda x:x[1])
   class AddDependencyView(View):
      def __init__(self):
        super().__init__()
