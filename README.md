@@ -26,7 +26,7 @@ The required packages are python3, pip, and sqlite3
 
 1. Clone this repository - `git clone https://github.com/PlaySorbonne/contretemps-bot.git`
 2. Create a Discord application through [Discord's developer portal](https://discord.com/developers/applications) and set an OAuth2 token. Copy the token and put it in the base folder in a file named .discord_token - `echo -n [your token] > .discord_token`
-3. Create a new project in [Google Cloud Services](https://cloud.google.com), and [create OAuth 2 credentials](https://cloud.google.com/docs/authentication?authuser=2&hl=fr) with at least '/auth/calendar' and '/auth/userinfo.email' as scopes. Download the OAuth credentials file and put it in the base folder under the name 'app_secret.json'
+3. Create a new project in [Google Cloud Services](https://cloud.google.com), and [create OAuth 2 credentials](https://cloud.google.com/docs/authentication?hl=fr) with at least '/auth/calendar' and '/auth/userinfo.email' as scopes. Download the OAuth credentials file and put it in the base folder under the name 'app_secret.json'
 4. Initialize the database - `(cd src/database && alembic upgrade head)`
     - This command must be executed each time the bot is updated
 5. Install all dependencies in the requirements.txt file - `python3 -m pip install -r requirements.txt`
