@@ -26,7 +26,7 @@ from commands.interactions.tasker import TaskInteractView
 from os import environ
 if 'CONTRETEMPS_DISCORD_TOKEN' in environ and 'CONTRETEMPS_CLIENT_ID' in environ:
   token = environ['CONTRETEMPS_DISCORD_TOKEN']
-  client_id = environ['CONTRETEMPS_DISCORD_TOKEN']
+  client_id = environ['CONTRETEMPS_CLIENT_ID']
 else:
   import env
   token = env.DISCORD_TOKEN
