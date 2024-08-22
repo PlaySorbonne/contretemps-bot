@@ -1,3 +1,7 @@
+[!CAUTION]
+This README is extremely not up to date and does not reflect the state of this project. For now, this project is to be considered as an internal
+tool for PSU.
+
 # ContretempsBot
 This is a Discord bot allowing to sync a Google calendar with a Discord server. The end-goal is to make a complete clone of the [Chronicle Bot](https://chroniclebot.com/) that implements all of its functionalities.
 
