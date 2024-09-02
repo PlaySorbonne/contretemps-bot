@@ -406,3 +406,12 @@ class TaskerCommands(commands.Cog):
       await ctx.respond(f'La tâche "{task}" n\'existe pas :(')
     else:
       await ctx.respond(f'Tâche "{task}" supprimée avec succès')
+  
+  @commands.slash_command(description='Update all task threads at once')
+  @project_checks(admin=True)
+  async def update_all_task_messages(self, ctx,
+    project : Option(str, autocomplete=autocomp(get_projects))
+  ):
+    await ctx.defer(ephemeral=True)
+    await tasker_core.update_all_tasks_messages(ctx.guild.id, project)
+    await ctx.respond(f'Fait!')

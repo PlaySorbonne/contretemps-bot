@@ -224,6 +224,14 @@ async def update_task_messages(task, s=None, main=None, sec=None):
     sec_message_components
   )
 
+async def update_all_tasks_messages(server_id, project_name, s=None):
+  if s is None:
+    with Session(engine) as s, s.begin():
+      return await update_all_tasks_messages(server_id, project_name, s=s)
+  p = _get_project(s, server_id, project_name)
+  for task in p.tasks:
+    await update_task_messages(task, s)
+
 async def bulk_create_tasks(guild_id, project_name, tasks):
   with Session(engine, autoflush=False) as s, s.begin():
     p = _get_project(s, guild_id, project_name)
