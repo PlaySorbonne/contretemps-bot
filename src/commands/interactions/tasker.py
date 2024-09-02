@@ -238,6 +238,23 @@ class TaskInteractView(View): #TODO SANITIZE ALL USER INPUT
     )
   
   @button(
+    label='Modifier description',
+    row=4,
+    custom_id='mod_desc_button',
+  )
+  async def mod_desc_callback(self, button, interaction):
+    if await find_task_or_tell(interaction) is None: return
+    async def cback(self2, interaction2):
+      await interaction2.response.defer()
+      async with lock:
+        if (task:=await find_task_or_tell(interaction)) is None: return
+        await tasker_core.edit_task_description(
+          task, self2.children[0].value
+        )
+    m = ActionModal('Nouvelle description', cback, '.')
+    await interaction.response.send_modal(m)
+  
+  @button(
     label='Mettre à jour message',
     row=4,
     custom_id='updmsg'

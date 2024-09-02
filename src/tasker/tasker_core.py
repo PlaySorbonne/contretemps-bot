@@ -225,6 +225,14 @@ async def delete_task_internal(task, s, del_thread):
     #TODO: handle these exceptions and signal to user
   s.delete(task)
 
+async def edit_task_description(task, description, s=None):
+  if s is None:
+   with Session(engine) as s, s.begin():
+    s.add(task)
+    return await edit_task_description(task, description, s)
+  task.description = description
+  await update_task_messages(task, s)
+
 async def update_task_messages(task, s=None, main=None, sec=None):
   if s is None:
    with Session(engine) as s, s.begin():
