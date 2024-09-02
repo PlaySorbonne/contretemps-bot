@@ -16,15 +16,24 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 
-import env
 from discord import utils, Permissions
 from bot import bot, server_notifiers
 from commands import calendar, tasker
 from event_notifier import EventNotifier
 from commands.interactions.tasker import TaskInteractView
 
-################################ BOT SETUP ####################################
+################################ FETCH TOKENS #################################
+from os import environ
+if 'CONTRETEMPS_DISCORD_TOKEN' in environ and 'CONTRETEMPS_CLIENT_ID' in environ:
+  token = environ['CONTRETEMPS_DISCORD_TOKEN']
+  client_id = environ['CONTRETEMPS_CLIENT_ID']
+else:
+  import env
+  token = env.DISCORD_TOKEN
+  client_id = env.CLIENT_ID
+########################### END FETCH TOKENS ##################################
 
+################################ BOT SETUP ####################################
 # Setting up an EventNotifier for each server the bot is a member of
 @bot.event
 async def on_ready():
@@ -44,8 +53,6 @@ bot.add_cog(tasker.TaskerCommands(bot))
 ############################## END BOT SETUP ##################################
 
 ################################ BOT LAUNCH ###################################
-token = env.DISCORD_TOKEN
-client_id = env.CLIENT_ID
 oauth = utils.oauth_url(
   client_id,
   permissions=Permissions(18135567026240),

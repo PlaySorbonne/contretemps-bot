@@ -57,7 +57,7 @@ class GoogleAuthentifier:
     
     def __init__(self):
         self.__flow = Flow.from_client_secrets_file(
-            "app_secret.json", 
+            "data/app_secret.json",
             scopes=GAPI_CALENDAR_SCOPES,
             redirect_uri='urn:ietf:wg:oauth:2.0:oob'
         )

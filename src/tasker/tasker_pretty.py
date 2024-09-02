@@ -183,7 +183,7 @@ def make_main_thread_message(project, s, template=None):
 
 def make_sec_thread_message(project, s, template=None):
   context = (
-    make_common_project_context(s) | 
+    make_common_project_context(s) |
     common_generic_context |
     make_global_project_context(s, project)
   )
@@ -201,5 +201,16 @@ def make_personnal_summary_message(project, contributor, s, template=None):
   )
   if template is None:
     template = open('./src/ressources/default_personnal_summary.template').read()
+  engine = Engine(context)
+  return {'content': engine.visit(parser.parse(template))}
+
+def make_contributor_stats_message(project, s, template=None):
+  context = (
+    make_common_project_context(s) |
+    common_generic_context |
+    make_global_project_context(s, project)
+  )
+  if template is None:
+    template = open('./src/ressources/default_participant_stats.template').read()
   engine = Engine(context)
   return {'content': engine.visit(parser.parse(template))}

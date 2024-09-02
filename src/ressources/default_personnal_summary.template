@@ -1,0 +1,21 @@
+# Ton sommaire personnel pour le project {{project_name}}
+
+## Tâches actives auxquelles tu participes
+{%foreach t in user_tasks(who) where not(task_finished(t))%}
+- {{task_thread(t)}}: finie à {{task_percentage(t)}}%. \
+{%if less_than(2,length(participants(t))) %} Avec: \
+{%foreach p in participants(t) where not(eq(p, who)) with sep ", "%}
+{{user_mention(p)}}\
+{%endfor%}. {%endif%}
+Dernière avancée: {{relative_date(log_date(last_of(task_logs(t))))}}.
+{%endfor%}
+
+## Tâches qui t'intéressent
+{%foreach t in user_interested(who) where not(task_finished(t))%}
+- {{task_thread(t)}}.
+{%endfor%}
+
+## Tâches finies auxquelles tu as participé
+{%foreach t in user_tasks(who) where task_finished(t)%}
+- {{task_thread(t)}}.
+{%endfor%}
