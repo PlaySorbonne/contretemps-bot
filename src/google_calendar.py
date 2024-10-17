@@ -59,7 +59,7 @@ class GoogleAuthentifier:
         self.__flow = Flow.from_client_secrets_file(
             "data/app_secret.json",
             scopes=GAPI_CALENDAR_SCOPES,
-            redirect_uri='urn:ietf:wg:oauth:2.0:oob'
+            redirect_uri='https://127.0.0.1/'
         )
         rtok = uuid4()
         self.__auth_url, state = self.__flow.authorization_url(

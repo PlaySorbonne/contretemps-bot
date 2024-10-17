@@ -55,6 +55,9 @@ class CalendarCommands(commands.Cog):
     async def connect(self, ctx):
         x = GoogleAuthentifier()
         message = "Get the code at this url then click the button. " + x.get_url()
+        message += "\nAfter accepting, you are redirected to a url that looks like"
+        message += "```https://127.0.0.1/?state=MARIO&code=LUIGI&scope=BLABLABLABLA```"
+        message += "In the above example, you would have to copy LUIGI and ignore the rest."
         email = server_notifiers[ctx.guild.id].get_email()
         if email is not None :
             message+=f'\n**Warning : you were connected with the mail {email}.'
