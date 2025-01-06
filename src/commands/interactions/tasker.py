@@ -238,14 +238,32 @@ class TaskInteractView(View): #TODO SANITIZE ALL USER INPUT
     )
   
   @button(
+    label='Modifier description',
+    row=4,
+    custom_id='mod_desc_button',
+  )
+  async def mod_desc_callback(self, button, interaction):
+    if await find_task_or_tell(interaction) is None: return
+    async def cback(self2, interaction2):
+      await interaction2.response.defer()
+      async with lock:
+        if (task:=await find_task_or_tell(interaction)) is None: return
+        await tasker_core.edit_task_description(
+          task, self2.children[0].value
+        )
+    m = ActionModal('Nouvelle description', cback, '.')
+    await interaction.response.send_modal(m)
+  
+  @button(
     label='Mettre à jour message',
     row=4,
     custom_id='updmsg'
   )
   async def upd_callback(self, button, interaction):
+    await interaction.response.defer(ephemeral=True)
     if await find_task_or_tell(interaction) is None: return
     await tasker_core.update_task_of(interaction.channel_id)
-    await interaction.response.send_message('Done!', ephemeral=True)
+    await interaction.followup.send(content='Done!', ephemeral=True)
 
 def EditStepView(thread_id, what):
   with Session(engine) as s:
@@ -500,7 +518,7 @@ def AddDependencyView(channel_id):
     choices = sorted([
       (task.thread_id, task.title) for task in _task.project.tasks
       if task not in tasker_graph.all_codependencies(_task, s)
-    ])
+    ], key=lambda x:x[1])
   class AddDependencyView(View):
      def __init__(self):
        super().__init__()

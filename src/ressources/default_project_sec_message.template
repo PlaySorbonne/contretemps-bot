@@ -10,8 +10,3 @@
 {%endif%}
 {%endif%}
 {%endfor%}
-
-# Demandes de plus d'infos
-{%foreach t in all_tasks where veterans(t)%}
--{%foreach i in veterans(t) with sep " et "%}{{user_mention(i)}} {%endfor%} demande(nt) plus d'infos pour la tâche {{task_thread(t)}}.
-{%endfor%}

@@ -31,7 +31,7 @@ from commands.interactions.tasker import TaskInteractView
 logger = logging.getLogger(__name__)
 numeric_level = logging.INFO #TODO: make it a command line argument
 launched_at = datetime.now().strftime("%Y%m%d-%H%M%S")
-makedirs('./data/logs')
+makedirs('./data/logs', exist_ok=True)
 logging.basicConfig(
   filename='data/logs/log-'+launched_at,
   level=numeric_level,
@@ -41,7 +41,18 @@ logging.basicConfig(
 
 
 ################################ BOT SETUP ####################################
+################################ FETCH TOKENS #################################
+from os import environ
+if 'CONTRETEMPS_DISCORD_TOKEN' in environ and 'CONTRETEMPS_CLIENT_ID' in environ:
+  token = environ['CONTRETEMPS_DISCORD_TOKEN']
+  client_id = environ['CONTRETEMPS_CLIENT_ID']
+else:
+  import env
+  token = env.DISCORD_TOKEN
+  client_id = env.CLIENT_ID
+########################### END FETCH TOKENS ##################################
 
+################################ BOT SETUP ####################################
 # Setting up an EventNotifier for each server the bot is a member of
 @bot.event
 async def on_ready():
@@ -61,8 +72,6 @@ bot.add_cog(tasker.TaskerCommands(bot))
 ############################## END BOT SETUP ##################################
 
 ################################ BOT LAUNCH ###################################
-token = env.DISCORD_TOKEN
-client_id = env.CLIENT_ID
 oauth = utils.oauth_url(
   client_id,
   permissions=Permissions(18135567026240),

@@ -406,7 +406,8 @@ class EventNotifier:
             if (ndays == X.MAX_DAYS):
                 flush_embed(False)
         if sofar : flush_embed(False)
-        if not embeds : embeds = [DailyEmbed(title, description, [])]
+        # TODO: way more informative titles and descriptions (yes this todo should be with the caller)
+        if not embeds : embeds = [DailyEmbed(title or "empty", description or "empty", [])]
         return embeds
     
     def _add_embed_event(self, e, start, end, day, regular, l, k=None, n=None):
@@ -541,6 +542,8 @@ class DailyEmbed(Embed):
             items.append(EmbedField(name=t, value=v))
         if followup and items : items[0].name = '' # The day has been announced in preceding embed
         super().__init__(title=title, description=description, fields=items)
+    def __repr__(self):
+        return f"Title:{self.title}\ndescription:{self.description}\nfields:{self.fields}\n"
 
 
 class EventNotificationEmbed(Embed):

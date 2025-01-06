@@ -18,22 +18,27 @@
 import traceback
 from datetime import datetime
 
-from discord import NotFound
+from discord import NotFound, Thread
 from bot import bot
 
 
 async def fetch_channel_opt(cid):
     if cid is not None:
       try:
-        return bot.get_channel(int(cid))
-      except NotFound:
+        channel = bot.get_channel(int(cid))
+        if not channel:
+          channel = await bot.fetch_channel(int(cid))
+        return channel
+      except HTTPException as e:
+        logger.warning(f"[fetch_channel_opt] failed to get channel {cid}. "
+                      +f"got HTTPException(status={e.status}, text={e.text})")
         return None
     return None
 
 async def fetch_message_opt(cid, mid):
     if mid is not None:
         try :
-            return await bot.get_channel(int(cid)).fetch_message(int(mid))
+            return await (await fetch_channel_opt(int(cid))).fetch_message(int(mid))
         except NotFound:
             return None
     return None
@@ -59,16 +64,15 @@ def split_long_message(what):
     lines = what['content'].strip().split('\n')[::-1]
     good_contents = []
     while lines:
-      base = lines.pop()
-      if len(base)>MAX_MESSAGE_ALLOWED:
+      base_string = lines.pop()
+      if len(base_string)>MAX_MESSAGE_ALLOWED:
         parts_of_base = [
           base[MAX_MESSAGE_ALLOWED*i:MAX_MESSAGE_ALLOWED*(i+1)]
           +'...' 
-          for i in range((len(base)-1)//MAX_MESSAGE_ALLOWED + 1)
+          for i in range((len(base_string)-1)//MAX_MESSAGE_ALLOWED + 1)
         ]
         good_contents += parts_of_base
       else:
-        base_string = ""
         while lines and len(base_string) + len(lines[-1]) <= MAX_MESSAGE_ALLOWED:
           base_string += lines.pop()+'\n'
         if base_string.strip(): good_contents.append(base_string)
@@ -93,20 +97,22 @@ async def publish_long_message(messages, channel_id, what):
        +f"Partie {num-1}/{total}: {prec_id}**]\n\n"
       )
     channel = await fetch_channel_opt(channel_id)
+    if isinstance(channel, Thread): #TODO move this inside fetch_channel_opt()
+      if channel.archived:
+        channel = await channel.unarchive()
     if len(what['content'])>MAX_MESSAGE_ALLOWED:
       lines = what['content'].strip().split('\n')[::-1]
       good_contents = []
       while lines:
-        base = lines.pop()
-        if len(base)>MAX_MESSAGE_ALLOWED:
+        base_string = lines.pop()
+        if len(base_string)>MAX_MESSAGE_ALLOWED:
           parts_of_base = [
             base[MAX_MESSAGE_ALLOWED*i:MAX_MESSAGE_ALLOWED*(i+1)]
             +'...' 
-            for i in range((len(base)-1)//MAX_MESSAGE_ALLOWED + 1)
+            for i in range((len(base_string)-1)//MAX_MESSAGE_ALLOWED + 1)
           ]
           good_contents += parts_of_base
         else:
-          base_string = ""
           while lines and len(base_string) + len(lines[-1]) <= MAX_MESSAGE_ALLOWED:
             base_string += lines.pop()+'\n'
           if base_string.strip(): good_contents.append(base_string)
