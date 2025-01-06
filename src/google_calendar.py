@@ -29,8 +29,12 @@ from  google.auth.exceptions import OAuthError, GoogleAuthError, RefreshError
 from datetime import datetime, timedelta
 from inspect import iscoroutinefunction
 
+from utils import signalEntryExitAsync
 
 from discord.ext import tasks
+
+import logging
+logger = logging.getLogger(__name__)
 
 
 GAPI_CALENDAR_SCOPES = [
@@ -253,6 +257,7 @@ class CalendarApiLink:
     
     @tasks.loop(seconds=5)
     @might_refresh_error()
+    @signalEntryExitAsync(logger)
     async def update(self):
         modified = dict()
         for cal in self.__watched_cals:
@@ -294,4 +299,3 @@ class CalendarApiLink:
           return
         if (self.__callback is not None):
             await self.__callback(modified)
-

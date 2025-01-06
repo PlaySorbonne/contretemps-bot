@@ -16,6 +16,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 import traceback
+import functools
 from datetime import datetime
 
 from discord import NotFound, Thread
@@ -168,3 +169,14 @@ async def publish_long_ephemeral(sender, what):
   good_contents = split_long_message(what)
   for i, content in enumerate(good_contents):
     await sender(content+f" (Partie {i+1}/{len(good_contents)})")
+
+
+def signalEntryExitAsync(logger):
+  def decorator(f):
+    @functools.wraps(f)
+    async def res(*args, **kwargs):
+      logger.info(f'[{f.__name__}] entered')
+      await f(*args, **kwargs)
+      logger.info(f'[{f.__name__}] exited')
+    return res
+  return decorator

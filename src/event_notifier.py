@@ -24,6 +24,7 @@ from discord import Embed, EmbedField
 from discord.errors import NotFound
 
 from google_calendar import CalendarApiLink
+from utils import signalEntryExitAsync
 
 import datetime
 from datetime import timezone, timedelta
@@ -31,6 +32,8 @@ from datetime import timezone, timedelta
 from dateutil.relativedelta import relativedelta
 from dateutil.utils import within_delta
 
+import logging
+logger = logging.getLogger(__name__)
 
 #TODO : handle timezones correctly everywhere
 #TODO : now it is hardcoded to just work with UTC+1
@@ -153,8 +156,12 @@ class EventNotifier:
     
     
     @tasks.loop(seconds=5)
+    @signalEntryExitAsync(logger=logger)
     async def check_summaries(self):
       if (self.__link is None):
+          logger.info(
+            f"[check_summaries] Exiting after no link with {self.__name}"
+          )
           return #TODO : maybe message the admins at least one time ?
       with Session(engine) as d, d.begin(): #TODO : CHECK THIS
         for w in d.get(DB.ServerConnexion, self.__server_id).watches:
