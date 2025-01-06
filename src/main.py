@@ -17,11 +17,28 @@
 
 
 import env
+import logging
+from os import makedirs
+from datetime import datetime
 from discord import utils, Permissions
 from bot import bot, server_notifiers
 from commands import calendar, tasker
 from event_notifier import EventNotifier
 from commands.interactions.tasker import TaskInteractView
+
+
+############################## LOGGER SETUP ###################################
+logger = logging.getLogger(__name__)
+numeric_level = logging.INFO #TODO: make it a command line argument
+launched_at = datetime.now().strftime("%Y%m%d-%H%M%S")
+makedirs('./data/logs')
+logging.basicConfig(
+  filename='data/logs/log-'+launched_at,
+  level=numeric_level,
+  format='%(levelname)s:%(name)s:[%(asctime)s]:%(message)s'
+)
+############################ END LOGGER SETUP #################################
+
 
 ################################ BOT SETUP ####################################
 
@@ -52,5 +69,7 @@ oauth = utils.oauth_url(
   scopes=('bot', 'guilds.members.read'),
 )
 print("URL:", oauth)
+logger.info("STARTING BOT...")
 bot.run(token)
+logger.info("BOT STOPPED")
 ############################## END BOT LAUNCH #################################
