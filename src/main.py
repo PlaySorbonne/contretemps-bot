@@ -16,7 +16,6 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 
-import env
 import logging
 from os import makedirs
 from datetime import datetime
