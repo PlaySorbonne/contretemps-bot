@@ -163,8 +163,10 @@ class EventNotifier:
             f"[check_summaries] Exiting after no link with {self.__name}"
           )
           return #TODO : maybe message the admins at least one time ?
+      logger.info(f'[check_summaries] <{self.__name}> Start cheking summaries')
       with Session(engine) as d, d.begin(): #TODO : CHECK THIS
         for w in d.get(DB.ServerConnexion, self.__server_id).watches:
+            logger.info(f'[check_summaries] <{self.__name}> Cheking watch {w.watch_id}')
             for s in w.summaries:
                 # check if it is time to update the summary base date
                 #TODO : handle these ad-hoc conversions using sqlalchemy's types (for dates and maybe for discord snowflakes ?)
@@ -173,6 +175,12 @@ class EventNotifier:
                 now = datetime.datetime.now().replace(tzinfo=UTC)
                 m = await self.fetch_message_list_opt(w.channel_id, s.message_id)
                 bad_message = now > base_date + delta
+                logger.info(
+                    f'[check_summaries] <{self.__name}> '
+                    +f'Cheking summary {s.summary_id}.'
+                    +f'(bad_message={bad_message},base={base_date}, delta={delta},'
+                    +f' now={now})'
+                )
                 if (bad_message): 
                     print("Found finished summary")
                     while (now > base_date+delta):
