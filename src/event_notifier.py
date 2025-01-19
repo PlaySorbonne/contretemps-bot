@@ -173,16 +173,20 @@ class EventNotifier:
                 base_date = EventNotifier.iso_to_utcdt(s.base_date)
                 delta = EventNotifier.parse_delta(s.frequency)
                 now = datetime.datetime.now().replace(tzinfo=UTC)
-                m = await self.fetch_message_list_opt(w.channel_id, s.message_id)
-                bad_message = now > base_date + delta
                 logger.info(
                     f'[check_summaries] <{self.__name}> '
                     +f'Cheking summary {s.summary_id}.'
-                    +f'(bad_message={bad_message},base={base_date}, delta={delta},'
-                    +f' now={now})'
+                    +f'(base={base_date}, delta={delta},'
+                    +f' now={now}). Fetching message list from Discord API...'
                 )
+                m = await self.fetch_message_list_opt(w.channel_id, s.message_id)
+                logger.info(
+                    f'[check_summaries] <{self.__name}> '
+                    +f'Finished awaiting message list for {s.summary_id}'
+                )
+                bad_message = now > base_date + delta
                 if (bad_message): 
-                    print("Found finished summary")
+                    logger.info(f"[check_summaries] Found finished summary {s.summary_id}")
                     while (now > base_date+delta):
                         base_date += delta
                 bad_message = bad_message or m is None or\
@@ -190,8 +194,10 @@ class EventNotifier:
                 if bad_message:
                     s.base_date = base_date.isoformat()
                     #TODO : possible race condition here is message gets deleted from db just before this ?
+                    logger.info(f"[check_summaries] Preparing to delete and republish summary {s.summary_id}")
                     await self.delete_summary_message(s, d=d)
                     await self.publish_summary(s, d=d)
+                    logger.info(f"[check_summaries] Finished republishings {s.summary_id}")
     
     async def delete_watch(self, watch_id, d=None):
         if d is None :
