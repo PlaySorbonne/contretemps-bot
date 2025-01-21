@@ -17,6 +17,7 @@
 
 import traceback
 import functools
+from random import randint
 from datetime import datetime
 import logging
 
@@ -174,13 +175,20 @@ async def publish_long_ephemeral(sender, what):
     await sender(content+f" (Partie {i+1}/{len(good_contents)})")
 
 
+def randomIdent(digits=5):
+    return randint(10**digits, 10**(digits+1)-1)
+
 def signalEntryExitAsync(logger):
   def decorator(f):
     @functools.wraps(f)
     async def res(*args, **kwargs):
-      logger.info(f'[{f.__name__}] entered')
-      await f(*args, **kwargs)
-      logger.info(f'[{f.__name__}] exited')
+      uid = randomIdent()
+      logger.info(f'[{f.__name__}] entered ({uid=}).')
+      try:
+          await f(*args, **kwargs)
+          logger.info(f'[{f.__name__}] exited ({uid=}).')
+      except Exception as e:
+          logger.info(f'[{f.__name__}] uncaught exception {type(e)=}:{e=} ({uid=})')
     return res
   return decorator
 

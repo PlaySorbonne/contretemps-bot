@@ -31,6 +31,13 @@ from datetime import timezone, timedelta
 from dateutil.relativedelta import relativedelta
 from dateutil.utils import within_delta
 
+import asyncio
+import sys
+if sys.version_info >= (3, 11):
+    from asyncio import timeout
+else:
+    from async_timeout import timeout
+
 import logging
 logger = logging.getLogger(__name__)
 
@@ -454,10 +461,17 @@ class EventNotifier:
         return l
     
     async def purge_opt_message_list(self, l):
+        self.__log.info(f"Preparing to await deletion of {len(l)} messages.")
         for m in l:
             if m is not None:
-                try: await m.delete()
-                except Exception : pass #TODO not like this
+                try:
+                    async with timeout(5):
+                        await m.delete()
+                except asyncio.TimeoutError:
+                    self.__log.info("Timed out.")
+                except Exception as e:
+                    self.__log.error(f"Unexpected exception {type(e)=}:{e=}")
+        self.__log.info("Finished awaiting deletions of messages")
     
     def set_access(self, uid, mention, l):
       with Session(engine) as d, d.begin():
@@ -489,9 +503,17 @@ class EventNotifier:
     async def fetch_message_opt(self, cid, mid):
         if mid is not None:
             try :
-                return await self.__b.get_channel(int(cid)).fetch_message(int(mid))
+                self.__log.info(f"Preparing to await fetch_message")
+                async with timeout(5):
+                    m = await self.__b.get_channel(int(cid)).fetch_message(int(mid))
+                self.__log.info("Finished awaiting message.")
+                return m
             except NotFound:
-                return None
+                self.__log.info(f"Failed with NotFound. channel={cid}, message={mid}")
+            except asyncio.TimeoutError:
+                self.__log.info(f"Timed out.")
+            except Exception as e:
+                self.__log.error(f"Unexpected exception {type(e)=}:{e=}")
         return None
     
     
