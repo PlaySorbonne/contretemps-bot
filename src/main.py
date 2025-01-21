@@ -34,7 +34,8 @@ makedirs('./data/logs', exist_ok=True)
 logging.basicConfig(
   filename='data/logs/log-'+launched_at,
   level=numeric_level,
-  format='%(levelname)s:%(name)s:[%(asctime)s]:%(message)s'
+  format='%(levelname)s:[%(asctime)s]:'
+         +'[%(filename)s::%(funcName)s]:  %(message)s'
 )
 ############################ END LOGGER SETUP #################################
 

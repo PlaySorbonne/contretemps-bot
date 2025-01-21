@@ -18,10 +18,13 @@
 import traceback
 import functools
 from datetime import datetime
+import logging
 
 from discord import NotFound, Thread
 from bot import bot
 
+
+logger = logging.getLogger(__name__)
 
 async def fetch_channel_opt(cid):
     if cid is not None:
@@ -180,3 +183,14 @@ def signalEntryExitAsync(logger):
       logger.info(f'[{f.__name__}] exited')
     return res
   return decorator
+
+
+class LogAdapter(logging.LoggerAdapter):
+    """
+    Modify logger by adding contextual information
+    """
+    def process(self, msg, kwargs):
+        return (
+          f'[{", ".join(f"{e}={f}" for (e,f) in self.extra.items())}] {msg}',
+          kwargs
+        )

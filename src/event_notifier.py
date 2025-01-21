@@ -24,11 +24,10 @@ from discord import Embed, EmbedField
 from discord.errors import NotFound
 
 from google_calendar import CalendarApiLink
-from utils import signalEntryExitAsync
+from utils import signalEntryExitAsync, LogAdapter
 
 import datetime
 from datetime import timezone, timedelta
-
 from dateutil.relativedelta import relativedelta
 from dateutil.utils import within_delta
 
@@ -46,6 +45,7 @@ class EventNotifier:
         self.__b = bot
         self.__server_id = server_id
         self.__name = server_name
+        self.__log = LogAdapter(logger, {"server": server_name})
         with Session(engine) as session:
             state = get_or_create(session, DB.ServerConnexion, server_id=server_id)
             self.__link, self.connected = None, False
@@ -159,34 +159,30 @@ class EventNotifier:
     @signalEntryExitAsync(logger=logger)
     async def check_summaries(self):
       if (self.__link is None):
-          logger.info(
-            f"[check_summaries] Exiting after no link with {self.__name}"
-          )
+          self.__log.info(f"Exiting after no link with server.")
           return #TODO : maybe message the admins at least one time ?
-      logger.info(f'[check_summaries] <{self.__name}> Start cheking summaries')
+      self.__log.info(f'Start cheking summaries.')
       with Session(engine) as d, d.begin(): #TODO : CHECK THIS
         for w in d.get(DB.ServerConnexion, self.__server_id).watches:
-            logger.info(f'[check_summaries] <{self.__name}> Cheking watch {w.watch_id}')
+            self.__log.info(f'Cheking watch "{w.watch_id}"')
             for s in w.summaries:
                 # check if it is time to update the summary base date
                 #TODO : handle these ad-hoc conversions using sqlalchemy's types (for dates and maybe for discord snowflakes ?)
                 base_date = EventNotifier.iso_to_utcdt(s.base_date)
                 delta = EventNotifier.parse_delta(s.frequency)
                 now = datetime.datetime.now().replace(tzinfo=UTC)
-                logger.info(
-                    f'[check_summaries] <{self.__name}> '
-                    +f'Cheking summary {s.summary_id}.'
+                self.__log.info(
+                    f'Cheking summary "{s.summary_id}".'
                     +f'(base={base_date}, delta={delta},'
                     +f' now={now}). Fetching message list from Discord API...'
                 )
                 m = await self.fetch_message_list_opt(w.channel_id, s.message_id)
-                logger.info(
-                    f'[check_summaries] <{self.__name}> '
-                    +f'Finished awaiting message list for {s.summary_id}'
+                self.__log.info(
+                    f'Finished awaiting message list for "{s.summary_id}"'
                 )
                 bad_message = now > base_date + delta
-                if (bad_message): 
-                    logger.info(f"[check_summaries] Found finished summary {s.summary_id}")
+                if (bad_message):
+                    self.__log.info(f'Found finished summary "{s.summary_id}"')
                     while (now > base_date+delta):
                         base_date += delta
                 bad_message = bad_message or m is None or\
@@ -194,10 +190,10 @@ class EventNotifier:
                 if bad_message:
                     s.base_date = base_date.isoformat()
                     #TODO : possible race condition here is message gets deleted from db just before this ?
-                    logger.info(f"[check_summaries] Preparing to delete and republish summary {s.summary_id}")
+                    self.__log.info(f'Preparing to delete and republish "{s.summary_id}"')
                     await self.delete_summary_message(s, d=d)
                     await self.publish_summary(s, d=d)
-                    logger.info(f"[check_summaries] Finished republishings {s.summary_id}")
+                    self.__log.info(f'Finished republishings "{s.summary_id}"')
     
     async def delete_watch(self, watch_id, d=None):
         if d is None :
@@ -445,9 +441,13 @@ class EventNotifier:
         else: l[day]= [value]
         
     
-    async def fetch_message_list_opt(self, channel_id, msg_ids): #TODO replace this with utils.py
+    async def fetch_message_list_opt(self, channel_id, msg_ids):
+    #TODO replace this with utils.py
         if msg_ids is None: return None
-        l = [await self.fetch_message_opt(channel_id, msg_id) for msg_id in msg_ids.split(';')]
+        l = [
+            await self.fetch_message_opt(channel_id, msg_id)
+            for msg_id in msg_ids.split(';')
+        ]
         if None in l:
             await self.purge_opt_message_list(l)
             return None
@@ -602,6 +602,3 @@ class EventNotificationEmbed(Embed):
         fields.append(EmbedField(name='Duration:', value=delta, inline=True))
         super().__init__(title=title, description=desc, fields=fields)
         self.set_author(name=author)
-        
-                
-            
