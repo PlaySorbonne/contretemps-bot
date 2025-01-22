@@ -188,7 +188,7 @@ def signalEntryExitAsync(logger):
           await f(*args, **kwargs)
           logger.info(f'[{f.__name__}] exited ({uid=}).')
       except Exception as e:
-          logger.info(f'[{f.__name__}] uncaught exception {type(e)=}:{e=} ({uid=})')
+          logger.error(f'[{f.__name__}] uncaught exception {type(e)=}:{e=} ({uid=})')
     return res
   return decorator
 

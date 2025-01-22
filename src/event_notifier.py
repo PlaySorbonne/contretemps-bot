@@ -469,8 +469,6 @@ class EventNotifier:
                         await m.delete()
                 except asyncio.TimeoutError:
                     self.__log.info("Timed out.")
-                except Exception as e:
-                    self.__log.error(f"Unexpected exception {type(e)=}:{e=}")
         self.__log.info("Finished awaiting deletions of messages")
     
     def set_access(self, uid, mention, l):
@@ -512,8 +510,6 @@ class EventNotifier:
                 self.__log.info(f"Failed with NotFound. channel={cid}, message={mid}")
             except asyncio.TimeoutError:
                 self.__log.info(f"Timed out.")
-            except Exception as e:
-                self.__log.error(f"Unexpected exception {type(e)=}:{e=}")
         return None
     
     
