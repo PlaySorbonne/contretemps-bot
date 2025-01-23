@@ -464,11 +464,7 @@ class EventNotifier:
         self.__log.info(f"Preparing to await deletion of {len(l)} messages.")
         for m in l:
             if m is not None:
-                try:
-                    async with timeout(5):
-                        await m.delete()
-                except asyncio.TimeoutError:
-                    self.__log.info("Timed out.")
+                await m.delete()
         self.__log.info("Finished awaiting deletions of messages")
     
     def set_access(self, uid, mention, l):
@@ -502,14 +498,11 @@ class EventNotifier:
         if mid is not None:
             try :
                 self.__log.info(f"Preparing to await fetch_message")
-                async with timeout(5):
-                    m = await self.__b.get_channel(int(cid)).fetch_message(int(mid))
+                m = await self.__b.get_channel(int(cid)).fetch_message(int(mid))
                 self.__log.info("Finished awaiting message.")
                 return m
             except NotFound:
                 self.__log.info(f"Failed with NotFound. channel={cid}, message={mid}")
-            except asyncio.TimeoutError:
-                self.__log.info(f"Timed out.")
         return None
     
     
