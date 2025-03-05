@@ -28,7 +28,7 @@ from commands.interactions.tasker import TaskInteractView
 
 ############################## LOGGER SETUP ###################################
 logger = logging.getLogger(__name__)
-numeric_level = logging.INFO #TODO: make it a command line argument
+numeric_level = logging.WARN #TODO: make it a command line argument
 launched_at = datetime.now().strftime("%Y%m%d-%H%M%S")
 makedirs('./data/logs', exist_ok=True)
 logging.basicConfig(
