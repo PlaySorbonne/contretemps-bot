@@ -209,11 +209,11 @@ class TaskerCommands(commands.Cog):
     file : Attachment
   ):
     from lark import UnexpectedInput #TODO not this
+    await ctx.defer(ephemeral=True)
     try :
       tasks = tasks_parser.parse(file) #TODO handle errors
     except UnexpectedInput as e:
       return await ctx.respond(f"Erreur lors de l'analyse des taches:\n{e.get_context(file)}", ephemeral=True)
-    await ctx.defer(ephemeral=True)
     try:
       await tasker_core.bulk_create_tasks(str(ctx.guild.id), project, tasks)
     except tasker_core.TaskAlreadyExists as t:
