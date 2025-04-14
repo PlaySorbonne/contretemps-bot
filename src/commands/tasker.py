@@ -68,6 +68,18 @@ def project_checks(admin=True):
                  +f"admin dans le projet {p}."
                  + "(/set_project_admin)",
           ephemeral=True)
+      bot_has_permissions = await tasker_core.check_forum_permissions(
+        ctx.guild.id,
+        p
+      )
+      if not bot_has_permissions:
+        return await ctx.respond(
+          content=f"Opération impossible car je n'ai pas les accès "
+                 +f"au forum associé au projet {p}."
+                 +f"Il me faut les droits pour créer des threads et "
+                 +f"pour envoyer des messages dans les threads du forum.",
+          ephemeral=True
+        )
       return await f(self, ctx, *args, **kwargs)
     return new_f
   return dec

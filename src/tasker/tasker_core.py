@@ -104,6 +104,16 @@ def is_project_admin(user_id, guild_id, project):
     u = s.get(Contributor, (str(user_id), p.project_id))
     return u is not None and u.project_admin 
 
+async def check_forum_permissions(guild_id, project):
+  with Session(engine) as s:
+    p = _get_project(s, guild_id, project)
+    try:
+      forum = await bot.fetch_channel(int(p.forum_id)) #TODO forum might be NULL.
+      perms = forum.permissions_for(forum.guild.get_member(bot.user.id))
+      return perms.send_messages and perms.manage_threads and perms.send_messages_in_threads
+    except Forbidden:
+      return False
+
 def set_project_admin(guild_id, project_name, user_id, to):
   with Session(engine) as s, s.begin():
     p = _get_project(s, guild_id, project_name)
