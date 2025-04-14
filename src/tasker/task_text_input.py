@@ -69,19 +69,19 @@ tasks_grammar = r"""
 """
 
 class TaskMaker(Transformer):
-    text = lambda self, s : s[0][:]
-    title = lambda self, items : ("title", items[0])
-    description = lambda self, items : ("description", items[0])
-    ref = lambda self, items : ("ref", items[0])
+    text = lambda self, s : s[0][:].strip(' ')
+    title = lambda self, items : ("title", items[0].strip(' '))
+    description = lambda self, items : ("description", items[0].strip(' '))
+    ref = lambda self, items : ("ref", items[0].strip(' '))
     subtask = lambda self, items : (TaskStep.SUBTASK,float(items[0][:]),items[1])
-    remark = lambda self, items : (TaskStep.REMARK, None, items[0])
+    remark = lambda self, items : (TaskStep.REMARK, None, items[0].strip(' '))
     startdate = lambda self, items : ("starts_after", items[0].strip())
     enddate = lambda self, items : ("ends_before", items[0].strip())
     beforedate = lambda self, items : ("urgent_after", items[0].strip())
     dependency = lambda self, items : items[0]
     
     def steps(self, items):
-      return ('steps',[TaskStep(kind=k, step_number=n, step_description=s)
+      return ('steps',[TaskStep(kind=k, step_number=n, step_description=s.strip(' '))
                        for (k,n,s) in items])
     def dependencies(self, items):
       return ("deps", items)
