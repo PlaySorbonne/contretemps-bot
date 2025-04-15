@@ -254,8 +254,8 @@ class TaskerCommands(commands.Cog):
   ):
     admins = tasker_core.get_project_admins(str(ctx.guild.id), project)
     await ctx.respond(
-      "Admins: "+', '.join(
-      f"<@{'&' if a[:3]=='121' else ''}{a}>" for a in admins
+      "Admins: (role OU personne)\n- "+'\n- '.join(
+      f"<@&{a}> OU <@{a}>" for a in admins
       # TODO: handle this better
       ),
       ephemeral=True
