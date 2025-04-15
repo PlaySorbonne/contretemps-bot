@@ -26,7 +26,7 @@ from sqlalchemy.ext.declarative import declared_attr
 
 class Project(Base):
     __tablename__ = 'project'
-    
+
     project_id : Mapped[int] = mc(primary_key=True)
     project_name : Mapped[str]
     server_id = mc(FK(ServerConnexion.server_id))
@@ -39,7 +39,7 @@ class Project(Base):
     main_template: Mapped[NULL[str]]
     sec_template: Mapped[NULL[str]]
     reminder_template: Mapped[NULL[str]]
-    
+
     server : Mapped['ServerConnexion'] = relationship(back_populates='projects')
     tasks : Mapped[List['Task']] = relationship(
       # No cascade delete because it needs manual handling
@@ -53,12 +53,16 @@ class Project(Base):
       back_populates='project',
       cascade='all, delete'
     )
-    
+    admins: Mapped[List['ProjectAdmin']] = relationship(
+      back_populates='project',
+      cascade='all, delete'
+    )
+
     UniqueConstraint("project_name", "server_id", name='project_name_unique')
 
 class TaskDependency(Base):
     __tablename__ = 'task_dependency'
-    
+
     project_id : Mapped[int] = mc(primary_key=True)
     task1 : Mapped[str] = mc(primary_key=True)
     task2 : Mapped[str] = mc(primary_key=True)
@@ -67,7 +71,7 @@ class TaskDependency(Base):
 
 class Task(Base):
     __tablename__ = 'task'
-    
+
     project_id : Mapped[int] = mc(FK(Project.project_id), primary_key=True)
     title : Mapped[str] = mc(primary_key=True)
     description : Mapped[str] = mc(default='')
@@ -80,7 +84,7 @@ class Task(Base):
     thread_id : Mapped[NULL[str]]
     main_message_id : Mapped[NULL[str]]
     sec_message_id : Mapped[NULL[str]]
-    
+
     project : Mapped[Project] = relationship(back_populates='tasks')
     veterans : Mapped[List['Contributor']] = relationship(
         back_populates='mastered_tasks', secondary='task_veteran')
@@ -106,19 +110,19 @@ class Task(Base):
       order_by='TaskLog.timestamp',
       cascade='all, delete'
     )
-    
+
     def __repr__(s):
       return f"Task(project={s.project_id}, title='{s.title}')"
 
 class Contributor(Base):
     __tablename__ = 'contributor'
-    
+
     member_id : Mapped[str] = mc(primary_key=True)
     project_id = mc(FK(Project.project_id), primary_key=True)
     no_dms : Mapped[int] = mc(default=0)
     no_mention : Mapped[int] = mc(default=0)
     project_admin : Mapped[int] = mc(default=0)
-    
+
     project : Mapped[Project] = relationship(back_populates='contributors')
     mastered_tasks : Mapped[List[Task]] = relationship(
         back_populates='veterans', secondary='task_veteran')
@@ -128,19 +132,27 @@ class Contributor(Base):
         back_populates='active', secondary='task_participant')
     motored_tasks : Mapped[List[Task]] = relationship(
         back_populates='moteurs', secondary='task_moteur')
-    
+
     def tasks(self, Kind):
       return { TaskInterested: self.interesting_tasks,
                TaskParticipant: self.current_tasks,
                TaskVeteran: self.mastered_tasks,
                TaskMoteur : self.motored_tasks }[Kind]
 
+class ProjectAdmin(Base):
+    __tablename__ = 'project_admin_id'
+
+    admin_id: Mapped[str] = mc(primary_key=True)
+    project_id = mc(FK(Project.project_id), primary_key=True)
+
+    project: Mapped[Project] = relationship(back_populates='admins')
+
 class TaskLog(Base):
     __tablename__ = 'task_log'
-    
+
     USER_LOG = 1
     SYSTEM_LOG = 2
-    
+
     project_id : Mapped[int] = mc(primary_key=True)
     task_title : Mapped[str] = mc(primary_key=True)
     timestamp : Mapped[str] = mc(primary_key=True)
@@ -151,18 +163,18 @@ class TaskLog(Base):
                          [Task.project_id, Task.title])
     ForeignKeyConstraint([project_id, member_id],
                          [Contributor.project_id, Contributor.member_id])
-    
+
     task : Mapped[Task] = relationship(back_populates='logs')
-    
+
     def __repr__(s):
       return (f'TaskLog(project={s.project_id}, task={s.task_title}, '
              +f'msg={s.log_message}, author=<@{s.member_id}>')
 
 class TaskStep(Base):
     __tablename__ = 'task_step'
-    
+
     SUBTASK, REMARK = 0,1
-    
+
     step_id : Mapped[int] = mc(primary_key=True)
     project_id : Mapped[int] = mc()
     task_title : Mapped[str] = mc()
@@ -172,17 +184,17 @@ class TaskStep(Base):
     kind : Mapped[int]
     ForeignKeyConstraint([project_id, task_title],
                          [Task.project_id, Task.title])
-    
+
     task : Mapped[Task] = relationship(back_populates='steps')
-    
+
     def __repr__(self):
       return f"TaskStep({self.project_id}, {self.step_description[:20]}-, ...)"
 
 class ProjectAlert(Base):
     __tablename__ = 'project_alert'
-    
+
     ON_CREATE, ON_COMPLETE, FREQUENT = 0, 1, 2
-    
+
     alert_id : Mapped[str] = mc(primary_key=True)
     project_id : Mapped[str] = mc(FK(Project.project_id), primary_key=True)
     channel_id : Mapped[str]
@@ -190,14 +202,14 @@ class ProjectAlert(Base):
     last_update: Mapped[NULL[str]]
     frequency: Mapped[NULL[str]]
     template: Mapped[NULL[str]]
-    
+
     project : Mapped[Project] = relationship(back_populates='alerts')
 
 class ContributorTaskMixin:
     project_id : Mapped[int] = mc(primary_key=True)
     task_title : Mapped[str] = mc(primary_key=True)
     member_id : Mapped[str] = mc(primary_key=True)
-    
+
     @declared_attr
     def task_fk(cls):
         return ForeignKeyConstraint([cls.project_id, cls.task_title],

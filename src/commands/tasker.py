@@ -58,8 +58,8 @@ def project_checks(admin=True):
         return await ctx.respond(content=f"Le projet '{p}' nexiste pas.",
                                  ephemeral=True)
       is_allowed = not admin or tasker_core.is_project_admin(
-        ctx.user.id,
-        ctx.guild.id,
+        ctx.user,
+        ctx.guild,
         p
       )
       if not is_allowed:
@@ -239,13 +239,27 @@ class TaskerCommands(commands.Cog):
   async def set_project_admin(self,
     ctx,
     project : Option(str, autocomplete=autocomp(get_projects)),
-    user : Member,
+    user : Role | Member,
     to : Option(bool, default=True, choices=[True, False])
   ):
     tasker_core.set_project_admin(str(ctx.guild.id), project, user.id, to)
     await ctx.respond("Done.", ephemeral=True)
   
-  
+  @commands.slash_command(description="List all admins for a given project")
+  @access_control(1)
+  @project_checks(admin=False)
+  async def list_project_admins(self,
+    ctx,
+    project: Option(str, autocomplete=autocomp(get_projects)),
+  ):
+    admins = tasker_core.get_project_admins(str(ctx.guild.id), project)
+    await ctx.respond(
+      "Admins: "+', '.join(
+      f"<@{'&' if a[:3]=='121' else ''}{a}>" for a in admins
+      # TODO: handle this better
+      ),
+      ephemeral=True
+    )
   @commands.slash_command(description='Make a main thread for a project')
   @project_checks(admin=True)
   @file_checks('main_template', 'secondary_template', max_file_size=1024*1024)
