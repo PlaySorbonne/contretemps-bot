@@ -1,5 +1,6 @@
 
 # Liste des tâche orphelines
+
 {%foreach (t) in unfinished_tasks %}
 {%if all x in predecessors(t) where less_than(100, task_percentage(x))%}
 {%if not(task_start(t)) %}
