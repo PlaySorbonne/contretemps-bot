@@ -418,7 +418,7 @@ class TaskerCommands(commands.Cog):
     except tasker_core.TaskAlreadyExists as e:
       await ctx.respond(f'Une tâche nommée "{e.args[0]}" existe déjà.')
   
-  @commands.slash_command(description='Create a new task in a project')
+  @commands.slash_command(description='Delete task in a project')
   @project_checks(admin=True)
   async def delete_project_task(self, ctx,
     project : Option(str, autocomplete=autocomp(get_projects)),
@@ -432,7 +432,24 @@ class TaskerCommands(commands.Cog):
       await ctx.respond(f'La tâche "{task}" n\'existe pas :(')
     else:
       await ctx.respond(f'Tâche "{task}" supprimée avec succès')
-  
+
+  @commands.slash_command(description='Change tasks name')
+  @project_checks(admin=True)
+  async def edit_task_title(self, ctx,
+    project: Option(str, autocomplete=autocomp(get_projects)),
+    task:Option(str, autocomplete=autocomp(get_project_tasks)),
+    new_title: Option(str)
+  ):
+    await ctx.defer(ephemeral=True)
+    try:
+      await tasker_core.edit_task_title(ctx.guild.id, project, task, new_title)
+    except tasker_core.NameAlreadyExists:
+      await ctx.respond(f'Une tâche avec ce nom existe déjà :(')
+    except tasker_core.TaskDoesNotExist:
+      await ctx.respond(f'Tâche "{task}" non trouvée :((')
+    else:
+      await ctx.respond(f'Tâche renommée avec succès')
+
   @commands.slash_command(description='Update all task threads at once')
   @project_checks(admin=True)
   async def update_all_task_messages(self, ctx,

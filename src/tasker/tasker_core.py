@@ -243,6 +243,36 @@ async def edit_task_description(task, description, s=None):
   task.description = description
   await update_task_messages(task, s)
 
+class NameAlreadyExists(Exception):
+  pass
+async def edit_task_title(guild_id, project_name, task_title, new_title):
+  with Session(engine) as s, s.begin():
+    proj = _get_project(s, guild_id, project_name)
+    task = s.scalars(
+      select(Task).filter_by(project_id = proj.project_id, title=task_title)).first()
+    if task is None:
+      raise TaskDoesNotExist()
+    await edit_task_title_internal(task, new_title, s)
+
+async def edit_task_title_internal(task, new_title, s=None):
+  if s is None:
+    with Session(engine) as s, s.begin():
+      s.add(task)
+      return await edit_task_title_internal(task, new_title, s)
+  # TODO : Check name does not already exists and raise otherwise
+  task.title = new_title
+  await update_task_thread_title(task, s)
+
+async def update_task_thread_title(task, s=None):
+  if s is None:
+    with Session(engine) as s, s.begin():
+      s.add(task)
+      return await update_task_thread_title(task, s)
+  thread = await bot.fetch_channel(int(task.thread_id))
+  if thread.archived:
+    await thread.unarchive()
+  await thread.edit(name=task.title)
+
 async def update_task_messages(task, s=None, main=None, sec=None):
   if s is None:
    with Session(engine) as s, s.begin():
