@@ -98,11 +98,15 @@ def get_project_tasks(guild_id, project_name):
       return [t.title for t in p.tasks]
     return []
 
-def is_project_admin(user_id, guild_id, project):
+def is_project_admin(user, guild, project):
   with Session(engine) as s:
-    p = _get_project(s, guild_id, project)
-    u = s.get(Contributor, (str(user_id), p.project_id))
-    return u is not None and u.project_admin 
+    p = _get_project(s, guild.id, project)
+    admins = [a.admin_id for a in p.admins]
+    u = bot.get_guild(guild.id).get_member(user.id)
+    return u is not None and (
+      str(u.id) in admins or
+      any(str(role.id) in admins for role in u.roles)
+    )
 
 async def check_forum_permissions(guild_id, project):
   with Session(engine) as s:
@@ -117,10 +121,18 @@ async def check_forum_permissions(guild_id, project):
 def set_project_admin(guild_id, project_name, user_id, to):
   with Session(engine) as s, s.begin():
     p = _get_project(s, guild_id, project_name)
-    user = get_or_create(s, Contributor,
-                         project_id=p.project_id, member_id=str(user_id))
-    user.project_admin = to
-    p.contributors.append(user)
+    admin = get_or_create(s, ProjectAdmin,
+                         project_id=p.project_id, admin_id=str(user_id))
+    if to:
+      p.admins.append(admin)
+    elif admin in p.admins:
+      try : s.delete(admin)
+      except ValueError: pass
+
+def get_project_admins(guild_id, project_name):
+  with Session(engine) as s:
+    p = _get_project(s, guild_id, project_name)
+    return [a.admin_id for a in p.admins]
 
 def remove_reminder(guild_id, project_name):
   with Session(engine) as s, s.begin():
