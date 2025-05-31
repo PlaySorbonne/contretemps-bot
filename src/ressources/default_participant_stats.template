@@ -1,12 +1,8 @@
 ## Gens qui motorisent dans {{project_name}}
-
 {% foreach c in project_contributors where length(user_moteur(c)) order_by length(user_moteur(c)) with sep ", " %}\
 {{user_mention(c)}}({{length(user_moteur(c))}})\
 {% endfor %}
-
 ## Gens qui ne motorisent nulle part dans {{project_name}}
-
-
 {% foreach c in project_contributors where not(length(user_moteur(c))) with sep ", " %}\
 {{user_mention(c)}}\
 {% endfor %}
@@ -14,14 +10,17 @@
 
 
 ## Gens qui participent dans {{project_name}}
-
 {% foreach c in project_contributors where length(user_tasks(c)) order_by length(user_tasks(c)) with sep ", " %}\
 {{user_mention(c)}}({{length(user_tasks(c))}})\
 {% endfor %}
-
-
 ## Gens qui ne participent nulle part dans {{project_name}}
-
 {% foreach c in project_contributors where not(length(user_tasks(c))) with sep ", " %}\
+{{user_mention(c)}}\
+{% endfor %}
+
+
+
+## Gens qui ne motorisent pas et ne participent pas
+{% foreach c in project_contributors where and(not(length(user_tasks(c))),not(length(user_moteur(c)))) with sep ", " %}\
 {{user_mention(c)}}\
 {% endfor %}
